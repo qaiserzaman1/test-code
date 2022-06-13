@@ -29,14 +29,14 @@ namespace PrestaShopBundle\Controller\Admin\Sell\Order;
 use Currency;
 use Exception;
 use InvalidArgumentException;
-use PrestaShop\Decimal\Number;
+use PrestaShop\PrestaShop\Adapter\Shop\Context as ShopContext;
+use PrestaShop\PrestaShop\Core\Action\ActionsBarButtonsCollection;
 use PrestaShop\PrestaShop\Core\Domain\Cart\Query\GetCartForOrderCreation;
 use PrestaShop\PrestaShop\Core\Domain\CartRule\Exception\InvalidCartRuleDiscountValueException;
 use PrestaShop\PrestaShop\Core\Domain\CustomerMessage\Command\AddOrderCustomerMessageCommand;
 use PrestaShop\PrestaShop\Core\Domain\CustomerMessage\Exception\CannotSendEmailException;
 use PrestaShop\PrestaShop\Core\Domain\CustomerMessage\Exception\CustomerMessageConstraintException;
 use PrestaShop\PrestaShop\Core\Domain\Order\Command\AddCartRuleToOrderCommand;
-use PrestaShop\PrestaShop\Core\Domain\Order\Command\AddOrderFromBackOfficeCommand;
 use PrestaShop\PrestaShop\Core\Domain\Order\Command\BulkChangeOrderStatusCommand;
 use PrestaShop\PrestaShop\Core\Domain\Order\Command\ChangeOrderCurrencyCommand;
 use PrestaShop\PrestaShop\Core\Domain\Order\Command\ChangeOrderDeliveryAddressCommand;
@@ -45,6 +45,7 @@ use PrestaShop\PrestaShop\Core\Domain\Order\Command\DeleteCartRuleFromOrderComma
 use PrestaShop\PrestaShop\Core\Domain\Order\Command\DuplicateOrderCartCommand;
 use PrestaShop\PrestaShop\Core\Domain\Order\Command\ResendOrderEmailCommand;
 use PrestaShop\PrestaShop\Core\Domain\Order\Command\SendProcessOrderEmailCommand;
+use PrestaShop\PrestaShop\Core\Domain\Order\Command\SetInternalOrderNoteCommand;
 use PrestaShop\PrestaShop\Core\Domain\Order\Command\UpdateOrderShippingDetailsCommand;
 use PrestaShop\PrestaShop\Core\Domain\Order\Command\UpdateOrderStatusCommand;
 use PrestaShop\PrestaShop\Core\Domain\Order\Exception\CannotEditDeliveredOrderProductException;
@@ -64,6 +65,7 @@ use PrestaShop\PrestaShop\Core\Domain\Order\Exception\OrderNotFoundException;
 use PrestaShop\PrestaShop\Core\Domain\Order\Exception\TransistEmailSendingException;
 use PrestaShop\PrestaShop\Core\Domain\Order\Invoice\Command\GenerateInvoiceCommand;
 use PrestaShop\PrestaShop\Core\Domain\Order\Invoice\Command\UpdateInvoiceNoteCommand;
+use PrestaShop\PrestaShop\Core\Domain\Order\Invoice\Exception\InvoiceException;
 use PrestaShop\PrestaShop\Core\Domain\Order\OrderConstraints;
 use PrestaShop\PrestaShop\Core\Domain\Order\Payment\Command\AddPaymentCommand;
 use PrestaShop\PrestaShop\Core\Domain\Order\Product\Command\AddProductToOrderCommand;
@@ -82,7 +84,6 @@ use PrestaShop\PrestaShop\Core\Domain\Product\QueryResult\FoundProduct;
 use PrestaShop\PrestaShop\Core\Domain\ValueObject\QuerySorting;
 use PrestaShop\PrestaShop\Core\Form\ConfigurableFormChoiceProviderInterface;
 use PrestaShop\PrestaShop\Core\Grid\Definition\Factory\OrderGridDefinitionFactory;
-use PrestaShop\PrestaShop\Core\Multistore\MultistoreContextCheckerInterface;
 use PrestaShop\PrestaShop\Core\Order\OrderSiblingProviderInterface;
 use PrestaShop\PrestaShop\Core\Search\Filters\OrderFilters;
 use PrestaShopBundle\Component\CsvResponse;
@@ -96,6 +97,7 @@ use PrestaShopBundle\Form\Admin\Sell\Order\ChangeOrderAddressType;
 use PrestaShopBundle\Form\Admin\Sell\Order\ChangeOrderCurrencyType;
 use PrestaShopBundle\Form\Admin\Sell\Order\ChangeOrdersStatusType;
 use PrestaShopBundle\Form\Admin\Sell\Order\EditProductRowType;
+use PrestaShopBundle\Form\Admin\Sell\Order\InternalNoteType;
 use PrestaShopBundle\Form\Admin\Sell\Order\OrderMessageType;
 use PrestaShopBundle\Form\Admin\Sell\Order\OrderPaymentType;
 use PrestaShopBundle\Form\Admin\Sell\Order\UpdateOrderShippingType;
@@ -119,12 +121,12 @@ class OrderController extends FrameworkBundleAdminController
     /**
      * Default number of products per page (in case invalid value is used)
      */
-    const DEFAULT_PRODUCTS_NUMBER = 8;
+    public const DEFAULT_PRODUCTS_NUMBER = 8;
 
     /**
      * Options used for the number of products per page
      */
-    const PRODUCTS_PAGINATION_OPTIONS = [8, 20, 50, 100];
+    public const PRODUCTS_PAGINATION_OPTIONS = [8, 20, 50, 100];
 
     /**
      * Shows list of orders
@@ -163,11 +165,22 @@ class OrderController extends FrameworkBundleAdminController
     {
         $toolbarButtons = [];
 
+        $isSingleShopContext = $this->get('prestashop.adapter.shop.context')->isSingleShopContext();
+
         $toolbarButtons['add'] = [
             'href' => $this->generateUrl('admin_orders_create'),
             'desc' => $this->trans('Add new order', 'Admin.Orderscustomers.Feature'),
             'icon' => 'add_circle_outline',
+            'disabled' => !$isSingleShopContext,
         ];
+
+        if (!$isSingleShopContext) {
+            $toolbarButtons['add']['help'] = $this->trans(
+                'You can use this feature in a single shop context only. Switch context to enable it.',
+                'Admin.Orderscustomers.Feature'
+            );
+            $toolbarButtons['add']['href'] = '#';
+        }
 
         return $toolbarButtons;
     }
@@ -185,24 +198,21 @@ class OrderController extends FrameworkBundleAdminController
     {
         $summaryForm = $this->createForm(CartSummaryType::class);
         $summaryForm->handleRequest($request);
+        $formHandler = $this->get('prestashop.core.form.identifiable_object.handler.cart_summary_form_handler');
 
-        if ($summaryForm->isSubmitted() && $summaryForm->isValid()) {
-            $formData = $summaryForm->getData();
-            try {
-                $orderId = $this->getCommandBus()->handle(new AddOrderFromBackOfficeCommand(
-                    (int) $formData['cart_id'],
-                    $this->getContext()->employee->id,
-                    $formData['order_message'],
-                    $formData['payment_module'],
-                    (int) $formData['order_state']
-                ));
+        try {
+            $result = $formHandler->handle($summaryForm);
+
+            if ($result->getIdentifiableObjectId() instanceof OrderId) {
+                /** @var OrderId $orderId */
+                $orderId = $result->getIdentifiableObjectId();
 
                 return $this->redirectToRoute('admin_orders_view', [
                     'orderId' => $orderId->getValue(),
                 ]);
-            } catch (Exception $e) {
-                $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages($e)));
             }
+        } catch (Exception $e) {
+            $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages($e)));
         }
 
         return $this->redirectToRoute('admin_orders_create');
@@ -221,7 +231,7 @@ class OrderController extends FrameworkBundleAdminController
      */
     public function createAction(Request $request)
     {
-        /** @var MultistoreContextCheckerInterface $shopContextChecker */
+        /** @var ShopContext $shopContextChecker */
         $shopContextChecker = $this->container->get('prestashop.adapter.shop.context');
 
         if (!$shopContextChecker->isSingleShopContext()) {
@@ -251,6 +261,8 @@ class OrderController extends FrameworkBundleAdminController
             'enableSidebar' => true,
             'recycledPackagingEnabled' => (bool) $configuration->get('PS_RECYCLABLE_PACK'),
             'giftSettingsEnabled' => (bool) $configuration->get('PS_GIFT_WRAPPING'),
+            'stockManagementEnabled' => (bool) $configuration->get('PS_STOCK_MANAGEMENT'),
+            'isB2BEnabled' => (bool) $configuration->get('PS_B2B_ENABLE'),
         ]);
     }
 
@@ -465,6 +477,7 @@ class OrderController extends FrameworkBundleAdminController
         ]);
 
         $currencyDataProvider = $this->container->get('prestashop.adapter.data_provider.currency');
+        //@todo: Fix me. Should not rely on legacy object model - Currency
         $orderCurrency = $currencyDataProvider->getCurrencyById($orderForViewing->getCurrencyId());
 
         $addProductRowForm = $this->createForm(AddProductRowType::class, [], [
@@ -477,16 +490,22 @@ class OrderController extends FrameworkBundleAdminController
             'symbol' => $orderCurrency->symbol,
         ]);
 
+        $internalNoteForm = $this->createForm(InternalNoteType::class, [
+            'note' => $orderForViewing->getNote(),
+        ]);
+
         $formBuilder = $this->get('prestashop.core.form.identifiable_object.builder.cancel_product_form_builder');
         $backOfficeOrderButtons = new ActionsBarButtonsCollection();
 
         try {
             $this->dispatchHook(
-                'actionGetAdminOrderButtons', [
-                'controller' => $this,
-                'id_order' => $orderId,
-                'actions_bar_buttons_collection' => $backOfficeOrderButtons,
-            ]);
+                'actionGetAdminOrderButtons',
+                [
+                    'controller' => $this,
+                    'id_order' => $orderId,
+                    'actions_bar_buttons_collection' => $backOfficeOrderButtons,
+                ]
+            );
 
             $cancelProductForm = $formBuilder->getFormFor($orderId);
         } catch (Exception $e) {
@@ -552,12 +571,13 @@ class OrderController extends FrameworkBundleAdminController
             'paginationNum' => $paginationNum,
             'paginationNumOptions' => $paginationNumOptions,
             'isAvailableQuantityDisplayed' => $this->configuration->getBoolean('PS_STOCK_MANAGEMENT'),
+            'internalNoteForm' => $internalNoteForm->createView(),
         ]);
     }
 
     /**
      * @AdminSecurity(
-     *     "is_granted(['update', 'delete'], request.get('_legacy_controller'))",
+     *     "is_granted('update', request.get('_legacy_controller')) && is_granted('delete', request.get('_legacy_controller'))",
      *     redirectRoute="admin_orders_view",
      *     redirectQueryParamsToKeep={"orderId"},
      *     message="You do not have permission to edit this."
@@ -594,7 +614,9 @@ class OrderController extends FrameworkBundleAdminController
     }
 
     /**
-     * @AdminSecurity("is_granted(['update', 'delete'], request.get('_legacy_controller'))")
+     * @AdminSecurity(
+     *     "is_granted('update', request.get('_legacy_controller')) && is_granted('delete', request.get('_legacy_controller'))"
+     * )
      *
      * @param int $orderId
      * @param Request $request
@@ -627,7 +649,9 @@ class OrderController extends FrameworkBundleAdminController
     }
 
     /**
-     * @AdminSecurity("is_granted(['update', 'delete'], request.get('_legacy_controller'))")
+     * @AdminSecurity(
+     *     "is_granted('update', request.get('_legacy_controller')) && is_granted('delete', request.get('_legacy_controller'))"
+     * )
      *
      * @param int $orderId
      * @param Request $request
@@ -680,7 +704,7 @@ class OrderController extends FrameworkBundleAdminController
     }
 
     /**
-     * @AdminSecurity("is_granted(['create'], request.get('_legacy_controller'))", redirectRoute="admin_orders_index")
+     * @AdminSecurity("is_granted('create', request.get('_legacy_controller'))", redirectRoute="admin_orders_index")
      *
      * @param int $orderId
      * @param Request $request
@@ -769,7 +793,7 @@ class OrderController extends FrameworkBundleAdminController
     }
 
     /**
-     * @AdminSecurity("is_granted(['read'], request.get('_legacy_controller'))", redirectRoute="admin_orders_index")
+     * @AdminSecurity("is_granted('read', request.get('_legacy_controller'))", redirectRoute="admin_orders_index")
      *
      * @param int $orderId
      *
@@ -805,7 +829,7 @@ class OrderController extends FrameworkBundleAdminController
     }
 
     /**
-     * @AdminSecurity("is_granted(['read'], request.get('_legacy_controller'))", redirectRoute="admin_orders_index")
+     * @AdminSecurity("is_granted('read', request.get('_legacy_controller'))", redirectRoute="admin_orders_index")
      *
      * @param int $orderId
      */
@@ -825,7 +849,7 @@ class OrderController extends FrameworkBundleAdminController
     }
 
     /**
-     * @AdminSecurity("is_granted(['read'], request.get('_legacy_controller'))", redirectRoute="admin_orders_index")
+     * @AdminSecurity("is_granted('read', request.get('_legacy_controller'))", redirectRoute="admin_orders_index")
      *
      * @param int $orderId
      */
@@ -843,7 +867,7 @@ class OrderController extends FrameworkBundleAdminController
     }
 
     /**
-     * @AdminSecurity("is_granted(['read'], request.get('_legacy_controller'))", redirectRoute="admin_orders_index")
+     * @AdminSecurity("is_granted('read', request.get('_legacy_controller'))", redirectRoute="admin_orders_index")
      *
      * @param int $orderId
      */
@@ -954,12 +978,18 @@ class OrderController extends FrameworkBundleAdminController
      */
     public function updateInvoiceNoteAction(int $orderId, int $orderInvoiceId, Request $request): RedirectResponse
     {
-        $this->getCommandBus()->handle(new UpdateInvoiceNoteCommand(
-            $orderInvoiceId,
-            $request->request->get('invoice_note')
-        ));
-
-        $this->addFlash('success', $this->trans('Successful update.', 'Admin.Notifications.Success'));
+        try {
+            $this->getCommandBus()->handle(new UpdateInvoiceNoteCommand(
+                $orderInvoiceId,
+                $request->request->get('invoice_note')
+            ));
+            $this->addFlash('success', $this->trans('Update successful', 'Admin.Notifications.Success'));
+        } catch (InvoiceException $e) {
+            $this->addFlash(
+                'error',
+                $this->getErrorMessageForException($e, $this->getErrorMessages($e))
+            );
+        }
 
         return $this->redirectToRoute('admin_orders_view', [
             'orderId' => $orderId,
@@ -1226,7 +1256,7 @@ class OrderController extends FrameworkBundleAdminController
         return $this->json(
             $this->getQueryBus()->handle(
                 (new GetCartForOrderCreation($cartId))
-                ->setHideDiscounts(true)
+                    ->setHideDiscounts(true)
             )
         );
     }
@@ -1633,7 +1663,7 @@ class OrderController extends FrameworkBundleAdminController
 
     /**
      * @AdminSecurity(
-     *     "is_granted(['update', 'delete'], request.get('_legacy_controller'))",
+     *     "is_granted('update', request.get('_legacy_controller')) && is_granted('delete', request.get('_legacy_controller'))",
      *     redirectRoute="admin_orders_view",
      *     redirectQueryParamsToKeep={"orderId"},
      *     message="You do not have permission to edit this."
@@ -1733,8 +1763,56 @@ class OrderController extends FrameworkBundleAdminController
     }
 
     /**
+     * Set order internal note.
+     *
      * @AdminSecurity(
-     *     "is_granted(['create', 'update'], request.get('_legacy_controller'))",
+     *     "is_granted('update', request.get('_legacy_controller')) && is_granted('create', request.get('_legacy_controller'))",
+     *     redirectRoute="admin_orders_index"
+     * )
+     *
+     * @param mixed $orderId
+     * @param Request $request
+     *
+     * @return Response
+     */
+    public function setInternalNoteAction($orderId, Request $request)
+    {
+        $internalNoteForm = $this->createForm(InternalNoteType::class);
+        $internalNoteForm->handleRequest($request);
+
+        if ($internalNoteForm->isSubmitted()) {
+            $data = $internalNoteForm->getData();
+
+            try {
+                $this->getCommandBus()->handle(new SetInternalOrderNoteCommand(
+                    (int) $orderId,
+                    $data['note']
+                ));
+
+                if ($request->isXmlHttpRequest()) {
+                    return $this->json([
+                        'success' => true,
+                        'message' => $this->trans('Update successful', 'Admin.Notifications.Success'),
+                    ]);
+                }
+
+                $this->addFlash('success', $this->trans('Update successful', 'Admin.Notifications.Success'));
+            } catch (OrderException $e) {
+                $this->addFlash(
+                    'error',
+                    $this->getErrorMessageForException($e, $this->getErrorMessages($e))
+                );
+            }
+        }
+
+        return $this->redirectToRoute('admin_orders_view', [
+            'orderId' => $orderId,
+        ]);
+    }
+
+    /**
+     * @AdminSecurity(
+     *     "is_granted('create', request.get('_legacy_controller')) && is_granted('update', request.get('_legacy_controller'))",
      *     message="You do not have permission to perform this search."
      * )
      *
@@ -1765,12 +1843,12 @@ class OrderController extends FrameworkBundleAdminController
             ]);
         } catch (ProductSearchEmptyPhraseException $e) {
             return $this->json(
-                [$e, 'message' => $this->getErrorMessageForException($e, $this->getErrorMessages($e))],
+                ['message' => $this->getErrorMessageForException($e, $this->getErrorMessages($e))],
                 Response::HTTP_BAD_REQUEST
             );
         } catch (Exception $e) {
             return $this->json(
-                [$e, 'message' => $this->getErrorMessageForException($e, [])],
+                ['message' => $this->getErrorMessageForException($e, [])],
                 Response::HTTP_INTERNAL_SERVER_ERROR
             );
         }
@@ -1816,7 +1894,14 @@ class OrderController extends FrameworkBundleAdminController
         }
 
         return [
-            CannotEditDeliveredOrderProductException::class => $this->trans('You cannot edit the cart once the order delivered.', 'Admin.Orderscustomers.Notification'),
+            ProductSearchEmptyPhraseException::class => $this->trans(
+                'Product search phrase must not be an empty string.',
+                'Admin.Orderscustomers.Notification'
+            ),
+            CannotEditDeliveredOrderProductException::class => $this->trans(
+                'You cannot edit the cart once the order delivered.',
+                'Admin.Orderscustomers.Notification'
+            ),
             OrderNotFoundException::class => $e instanceof OrderNotFoundException ?
                 $this->trans(
                     'Order #%d cannot be loaded.',
@@ -1828,6 +1913,10 @@ class OrderController extends FrameworkBundleAdminController
                 'Admin.Orderscustomers.Notification'
             ),
             OrderException::class => $this->trans(
+                $e->getMessage(),
+                'Admin.Orderscustomers.Notification'
+            ),
+            InvoiceException::class => $this->trans(
                 $e->getMessage(),
                 'Admin.Orderscustomers.Notification'
             ),
@@ -2010,19 +2099,19 @@ class OrderController extends FrameworkBundleAdminController
                 ) : '',
             CustomerMessageConstraintException::class => [
                 CustomerMessageConstraintException::MISSING_MESSAGE => $this->trans(
-                        'The %s field is not valid',
-                        'Admin.Notifications.Error',
-                        [
-                            sprintf('"%s"', $this->trans('Message', 'Admin.Global')),
-                        ]
-                    ),
+                    'The %s field is not valid',
+                    'Admin.Notifications.Error',
+                    [
+                        sprintf('"%s"', $this->trans('Message', 'Admin.Global')),
+                    ]
+                ),
                 CustomerMessageConstraintException::INVALID_MESSAGE => $this->trans(
-                        'The %s field is not valid',
-                        'Admin.Notifications.Error',
-                        [
-                            sprintf('"%s"', $this->trans('Message', 'Admin.Global')),
-                        ]
-                    ),
+                    'The %s field is not valid',
+                    'Admin.Notifications.Error',
+                    [
+                        sprintf('"%s"', $this->trans('Message', 'Admin.Global')),
+                    ]
+                ),
             ],
         ];
     }

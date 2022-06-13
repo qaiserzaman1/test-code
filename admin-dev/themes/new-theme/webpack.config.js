@@ -27,13 +27,9 @@
 /**
  * Three mode available:
  *  build = production mode
- *  build:analyze = production mode with bundler analyzer
  *  dev = development mode
  */
-const requirement = process.env.NODE_ENV === 'production' ?
-  require('./.webpack/prod.js')() :
-  require('./.webpack/dev.js')();
+const prod = require('./.webpack/prod.js');
+const dev = require('./.webpack/dev.js');
 
-module.exports = () => (
-  requirement
-);
+module.exports = (env, argv) => (argv !== undefined && (argv.mode === 'production' || !argv.mode) ? prod() : dev());

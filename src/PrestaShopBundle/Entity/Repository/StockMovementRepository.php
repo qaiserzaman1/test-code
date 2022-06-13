@@ -37,6 +37,11 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class StockMovementRepository extends StockManagementRepository
 {
     /**
+     * @var string
+     */
+    protected $dateFormatFull;
+
+    /**
      * StockMovementRepository constructor.
      *
      * @param ContainerInterface $container
@@ -44,7 +49,8 @@ class StockMovementRepository extends StockManagementRepository
      * @param EntityManager $entityManager
      * @param ContextAdapter $contextAdapter
      * @param ImageManager $imageManager
-     * @param $tablePrefix
+     * @param string $tablePrefix
+     * @param string $dateFormatFull
      */
     public function __construct(
         ContainerInterface $container,
@@ -52,7 +58,8 @@ class StockMovementRepository extends StockManagementRepository
         EntityManager $entityManager,
         ContextAdapter $contextAdapter,
         ImageManager $imageManager,
-        $tablePrefix
+        $tablePrefix,
+        string $dateFormatFull
     ) {
         parent::__construct(
             $container,
@@ -62,6 +69,8 @@ class StockMovementRepository extends StockManagementRepository
             $imageManager,
             $tablePrefix
         );
+
+        $this->dateFormatFull = $dateFormatFull;
     }
 
     /**
@@ -81,6 +90,7 @@ class StockMovementRepository extends StockManagementRepository
         }
 
         $combinationNameQuery = $this->getCombinationNameSubquery();
+        $attributeNameQuery = $this->getAttributeNameSubquery();
 
         return str_replace(
             [
@@ -89,6 +99,7 @@ class StockMovementRepository extends StockManagementRepository
                 '{order_by}',
                 '{table_prefix}',
                 '{combination_name}',
+                '{attribute_name}',
             ],
             [
                 $andWhereClause,
@@ -96,6 +107,7 @@ class StockMovementRepository extends StockManagementRepository
                 $orderByClause,
                 $this->tablePrefix,
                 $combinationNameQuery,
+                $attributeNameQuery,
             ],
             'SELECT SQL_CALC_FOUND_ROWS
               sm.id_stock_mvt,
@@ -120,7 +132,8 @@ class StockMovementRepository extends StockManagementRepository
               p.id_supplier                               AS supplier_id,
               COALESCE(s.name, "N/A")                     AS supplier_name,
               COALESCE(ic.id_image, 0)                    AS product_cover_id,
-              {combination_name}
+              {combination_name},
+              {attribute_name}
            FROM {table_prefix}stock_mvt sm
             INNER JOIN {table_prefix}stock_mvt_reason_lang smrl ON (
               smrl.id_stock_mvt_reason = sm.id_stock_mvt_reason
@@ -182,9 +195,9 @@ class StockMovementRepository extends StockManagementRepository
      */
     protected function addAdditionalData(array $rows)
     {
-        $rows = $this->addCombinationsAndFeatures($rows);
-        $rows = $this->addImageThumbnailPaths($rows);
+        $rows = parent::addAdditionalData($rows);
         $rows = $this->addOrderLink($rows);
+        $rows = $this->addFormattedDate($rows);
 
         return $rows;
     }
@@ -198,7 +211,7 @@ class StockMovementRepository extends StockManagementRepository
     {
         foreach ($rows as &$row) {
             if ($row['id_order']) {
-                $row['order_link'] = $this->contextAdapter->getContext()->link->getAdminLink(
+                $row['order_link'] = $this->getCurrentContext()->link->getAdminLink(
                     'AdminOrders',
                     true,
                     [],
@@ -231,7 +244,7 @@ class StockMovementRepository extends StockManagementRepository
         );
 
         $statement = $this->connection->prepare($query);
-        $statement->bindValue('shop_id', $this->shopId, PDO::PARAM_INT);
+        $statement->bindValue('shop_id', $this->getContextualShopId(), PDO::PARAM_INT);
         $statement->execute();
 
         $rows = $statement->fetchAll();
@@ -274,8 +287,8 @@ class StockMovementRepository extends StockManagementRepository
         );
 
         $statement = $this->connection->prepare($query);
-        $statement->bindValue('language_id', $this->languageId, PDO::PARAM_INT);
-        $statement->bindValue('shop_id', $this->shopId, PDO::PARAM_INT);
+        $statement->bindValue('language_id', $this->getCurrentLanguageId(), PDO::PARAM_INT);
+        $statement->bindValue('shop_id', $this->getContextualShopId(), PDO::PARAM_INT);
         $statement->execute();
 
         $rows = $statement->fetchAll();
@@ -301,5 +314,17 @@ class StockMovementRepository extends StockManagementRepository
         $this->em->flush();
 
         return $stockMvt->getIdStockMvt();
+    }
+
+    protected function addFormattedDate(array $rows): array
+    {
+        foreach ($rows as &$row) {
+            $row['date_add_formatted'] = date(
+                $this->dateFormatFull,
+                strtotime($row['date_add'])
+            );
+        }
+
+        return $rows;
     }
 }

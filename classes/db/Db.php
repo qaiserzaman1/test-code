@@ -55,7 +55,7 @@ abstract class DbCore
     /** @var bool */
     protected $is_cache_enabled;
 
-    /** @var PDO|mysqli|resource Resource link */
+    /** @var PDO|mysqli|resource|null Resource link */
     protected $link;
 
     /** @var PDOStatement|mysqli_result|resource|bool SQL cached result */
@@ -67,7 +67,7 @@ abstract class DbCore
     /** @var array List of server settings */
     public static $_servers = [];
 
-    /** @var null Flag used to load slave servers only once.
+    /** @var bool|null Flag used to load slave servers only once.
      * See loadSlaveServers() method
      */
     public static $_slave_servers_loaded = null;
@@ -89,7 +89,7 @@ abstract class DbCore
     /**
      * Last cached query.
      *
-     * @var string
+     * @var bool
      */
     protected $last_cached;
 
@@ -251,8 +251,8 @@ abstract class DbCore
     }
 
     /**
-     * @param $test_db Db
-     * Unit testing purpose only
+     * @param Db $test_db
+     *                    Unit testing purpose only
      */
     public static function setInstanceForTesting($test_db)
     {
@@ -292,6 +292,7 @@ abstract class DbCore
     public static function getClass()
     {
         $class = '';
+        /* @phpstan-ignore-next-line */
         if (PHP_VERSION_ID >= 50200 && extension_loaded('pdo_mysql')) {
             $class = 'DbPDO';
         } elseif (extension_loaded('mysqli')) {
@@ -376,9 +377,8 @@ abstract class DbCore
         $this->result = $this->_query($sql);
 
         if (!$this->result && $this->getNumberError() == 2006) {
-            if ($this->connect()) {
-                $this->result = $this->_query($sql);
-            }
+            $this->connect();
+            $this->result = $this->_query($sql);
         }
 
         if (_PS_DEBUG_SQL_) {
@@ -421,7 +421,7 @@ abstract class DbCore
         } elseif ($type == Db::ON_DUPLICATE_KEY) {
             $insert_keyword = 'INSERT';
         } else {
-            throw new PrestaShopDatabaseException('Bad keyword, must be Db::INSERT or Db::INSERT_IGNORE or Db::REPLACE');
+            throw new PrestaShopDatabaseException('Bad keyword, must be Db::INSERT or Db::INSERT_IGNORE or Db::REPLACE or Db::ON_DUPLICATE_KEY');
         }
 
         // Check if $data is a list of row
@@ -434,6 +434,7 @@ abstract class DbCore
         $values_stringified = [];
         $first_loop = true;
         $duplicate_key_stringified = '';
+
         foreach ($data as $row_data) {
             $values = [];
             foreach ($row_data as $key => $value) {
@@ -578,7 +579,7 @@ abstract class DbCore
      * @param bool $array Return an array instead of a result object (deprecated since 1.5.0.1, use query method instead)
      * @param bool $use_cache
      *
-     * @return array|false|mysqli_result|PDOStatement|resource|null
+     * @return array|bool|mysqli_result|PDOStatement|resource|null
      *
      * @throws PrestaShopDatabaseException
      */
@@ -602,7 +603,7 @@ abstract class DbCore
         }
 
         // This method must be used only with queries which display results
-        if (!preg_match('#^\s*\(?\s*(select|show|explain|describe|desc)\s#i', $sql)) {
+        if (!preg_match('#^\s*\(?\s*(select|show|explain|describe|desc|checksum)\s#i', $sql)) {
             if (defined('_PS_MODE_DEV_') && _PS_MODE_DEV_) {
                 throw new PrestaShopDatabaseException('Db->executeS() must be used only with select, show, explain or describe queries');
             }
@@ -686,7 +687,7 @@ abstract class DbCore
      * @param string|DbQuery $sql
      * @param bool $use_cache
      *
-     * @return string|false|null
+     * @return string|false|null Returns false if no results
      */
     public function getValue($sql, $use_cache = true)
     {
@@ -694,7 +695,8 @@ abstract class DbCore
             $sql = $sql->build();
         }
 
-        if (!$result = $this->getRow($sql, $use_cache)) {
+        $result = $this->getRow($sql, $use_cache);
+        if (false === $result) {
             return false;
         }
 
@@ -718,6 +720,8 @@ abstract class DbCore
         } elseif ($this->is_cache_enabled && $this->last_cached) {
             return Cache::getInstance()->get($this->last_query_hash . '_nrows');
         }
+
+        return 0;
     }
 
     /**
@@ -778,15 +782,12 @@ abstract class DbCore
      *
      * @param string $string SQL data which will be injected into SQL query
      * @param bool $html_ok Does data contain HTML code ? (optional)
+     * @param bool $bq_sql Escape backticks
      *
      * @return string Sanitized data
      */
     public function escape($string, $html_ok = false, $bq_sql = false)
     {
-        if (_PS_MAGIC_QUOTES_GPC_) {
-            $string = stripslashes($string);
-        }
-
         if (!is_numeric($string)) {
             $string = $this->_escape($string);
 
@@ -868,17 +869,20 @@ abstract class DbCore
     }
 
     /**
-     * Checks if auto increment value and offset is 1.
+     * Tries to connect to the database and select content (checking select privileges).
      *
      * @param string $server
      * @param string $user
      * @param string $pwd
+     * @param string $db
+     * @param string $prefix
+     * @param string|null $engine Table engine
      *
-     * @return bool
+     * @return bool|string True, false or error
      */
-    public static function checkAutoIncrement($server, $user, $pwd)
+    public static function checkSelectPrivilege($server, $user, $pwd, $db, $prefix, $engine = null)
     {
-        return call_user_func_array([Db::getClass(), 'checkAutoIncrement'], [$server, $user, $pwd]);
+        return call_user_func_array([Db::getClass(), 'checkSelectPrivilege'], [$server, $user, $pwd, $db, $prefix, $engine]);
     }
 
     /**

@@ -24,45 +24,60 @@
  *-->
 <template>
   <div class="form-group">
-    <label>{{label}}</label>
-    <textarea class="form-control" rows="2" v-model="getTranslated" :class="{ missing : isMissing }"></textarea>
-    <PSButton class="mt-3 float-sm-right" :primary="false" ghost @click="resetTranslation">
+    <label>{{ label }}</label>
+    <textarea
+      class="form-control"
+      rows="2"
+      v-model="getTranslated"
+      :class="{ missing : isMissing }"
+    />
+    <PSButton
+      class="mt-3 float-sm-right"
+      :primary="false"
+      ghost
+      @click="resetTranslation"
+    >
       {{ trans('button_reset') }}
     </PSButton>
-    <small class="mt-3">{{extraInfo}}</small>
+    <small class="mt-3">{{ extraInfo }}</small>
   </div>
 </template>
 
-<script>
-  import PSButton from '@app/widgets/ps-button';
-  import { EventBus } from '@app/utils/event-bus';
+<script lang="ts">
+  import Vue from 'vue';
+  import PSButton from '@app/widgets/ps-button.vue';
+  import {EventBus} from '@app/utils/event-bus';
 
-  export default {
+  export default Vue.extend({
     name: 'TranslationInput',
     props: {
       id: {
         type: Number,
+        required: false,
+        default: 0,
       },
       extraInfo: {
         type: String,
         required: false,
+        default: '',
       },
       label: {
         type: String,
         required: true,
       },
       translated: {
+        type: Object,
         required: true,
       },
     },
     computed: {
       getTranslated: {
-        get() {
-          return this.translated.database ? this.translated.database : this.translated.xliff;
+        get(): any {
+          return this.translated.user ? this.translated.user : this.translated.project;
         },
-        set(modifiedValue) {
+        set(modifiedValue: any): void {
           const modifiedTranslated = this.translated;
-          modifiedTranslated.database = modifiedValue;
+          modifiedTranslated.user = modifiedValue;
           modifiedTranslated.edited = modifiedValue;
           this.$emit('input', modifiedTranslated);
           this.$emit('editedAction', {
@@ -71,12 +86,12 @@
           });
         },
       },
-      isMissing() {
+      isMissing(): boolean {
         return this.getTranslated === null;
       },
     },
     methods: {
-      resetTranslation() {
+      resetTranslation(): void {
         this.getTranslated = '';
         EventBus.$emit('resetTranslation', this.translated);
       },
@@ -84,11 +99,11 @@
     components: {
       PSButton,
     },
-  };
+  });
 </script>
 
 <style lang="scss" scoped>
-  @import "../../../../../../scss/config/_settings.scss";
+  @import '~@scss/config/_settings.scss';
 
   .form-group {
     overflow: hidden;

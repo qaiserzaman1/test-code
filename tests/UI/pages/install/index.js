@@ -2,7 +2,16 @@ require('module-alias/register');
 // Using CommonPage
 const CommonPage = require('@pages/commonPage');
 
+/**
+ * Install page, contains functions used in different steps of the install
+ * @class
+ * @extends CommonPage
+ */
 class Install extends CommonPage {
+  /**
+   * @constructs
+   * Setting up titles and selectors to use on install page
+   */
   constructor() {
     super();
 
@@ -12,7 +21,8 @@ class Install extends CommonPage {
     this.secondStepEnTitle = 'License Agreements';
     this.thirdStepEnTitle = 'We are currently checking PrestaShop compatibility with your system environment';
     this.fourthStepEnTitle = 'Information about your Store';
-    this.fifthStepEnTitle = 'Configure your database by filling out the following fields';
+    this.fifthStepEnTitle = 'Content of your store';
+    this.sixthStepEnTitle = 'Configure your database by filling out the following fields';
     this.finalStepEnTitle = 'Your installation is finished!';
 
     // Selectors for all steps
@@ -31,9 +41,11 @@ class Install extends CommonPage {
     this.thirdStepFinishedListItem = '#leftpannel #tabs li.finished:nth-child(3)';
 
     // Selectors for step 4
+    this.fourthStepFinishedListItem = '#leftpannel #tabs li.finished:nth-child(4)';
     this.storeInformationStepPageTitle = '#infosShopBlock h2';
     this.shopNameInput = '#infosShop';
-    this.countrySelect = '#infosCountry';
+    this.countryChosenSelect = '#infosCountry_chosen';
+    this.countryChosenSearchInput = `${this.countryChosenSelect} .chosen-search input`;
     this.firstNameInput = '#infosFirstname';
     this.lastNameInput = '#infosName';
     this.emailInput = '#infosEmail';
@@ -41,11 +53,16 @@ class Install extends CommonPage {
     this.repeatPasswordInput = '#infosPasswordRepeat';
 
     // Selectors for step 5
+    this.contentInformationStepPageTitle = '#contentInfosBlock h2';
+    this.fifthStepFinishedListItem = '#leftpannel #tabs li.finished:nth-child(5)';
+
+    // Selectors for step 6
     this.systemConfigurationStepPageTitle = '#dbPart h2';
     this.dbServerInput = '#dbServer';
     this.dbLoginInput = '#dbLogin';
     this.dbNameInput = '#dbName';
     this.dbPasswordInput = '#dbPassword';
+    this.dbPrefixInput = '#db_prefix';
     this.testDbConnectionButton = '#btTestDB';
     this.createDbButton = '#btCreateDB';
     this.dbResultCheckOkBlock = '#dbResultCheck.okBlock';
@@ -58,17 +75,17 @@ class Install extends CommonPage {
     this.populateDatabaseStep = '#process_step_populateDatabase';
     this.configureShopStep = '#process_step_configureShop';
     this.installModulesStep = '#process_step_installModules';
-    this.installModulesAddons = '#process_step_installModulesAddons';
     this.installThemeStep = '#process_step_installTheme';
     this.installFixturesStep = '#process_step_installFixtures';
+    this.installPostInstall = '#process_step_postInstall';
     this.installationFinishedStepPageTitle = '#install_process_success h2';
     this.discoverFoButton = '#foBlock';
   }
 
   /**
    * Get step title
-   * @param page
-   * @param step
+   * @param page {Page} Browser tab
+   * @param step {string} Step to get title from
    * @returns {Promise<string>}
    */
   async getStepTitle(page, step) {
@@ -91,6 +108,10 @@ class Install extends CommonPage {
         selector = this.storeInformationStepPageTitle;
         break;
 
+      case 'Content of your store':
+        selector = this.contentInformationStepPageTitle;
+        break;
+
       case 'System configuration':
         selector = this.systemConfigurationStepPageTitle;
         break;
@@ -108,7 +129,7 @@ class Install extends CommonPage {
 
   /**
    * Change install language in step 1
-   * @param page
+   * @param page {Page} Browser tab
    * @return {Promise<void>}
    */
   async setInstallLanguage(page) {
@@ -117,7 +138,7 @@ class Install extends CommonPage {
 
   /**
    * Go to next step
-   * @param page
+   * @param page {Page} Browser tab
    * @return {Promise<void>}
    */
   async nextStep(page) {
@@ -127,21 +148,26 @@ class Install extends CommonPage {
 
   /**
    * Click on checkbox to agree on terms and conditions if its not checked already in step 2
-   * @param page
+   * @param page {Page} Browser tab
    * @return {Promise<void>}
    */
   async agreeToTermsAndConditions(page) {
-    await this.changeCheckboxValue(page, this.termsConditionsCheckbox);
+    await this.setChecked(page, this.termsConditionsCheckbox);
   }
 
   /**
    * Fill Information and Account Forms in step 4
-   * @param page
+   * @param page {Page} Browser tab
    * @return {Promise<void>}
    */
   async fillInformationForm(page) {
     await page.type(this.shopNameInput, global.INSTALL.SHOP_NAME);
-    await page.selectOption(this.countrySelect, global.INSTALL.COUNTRY);
+
+    // Choosing country
+    await page.click(this.countryChosenSelect);
+    await page.type(this.countryChosenSearchInput, global.INSTALL.COUNTRY);
+    await page.keyboard.press('Enter');
+
     await page.type(this.firstNameInput, global.BO.FIRSTNAME);
     await page.type(this.lastNameInput, global.BO.LASTNAME);
     await page.type(this.emailInput, global.BO.EMAIL);
@@ -151,7 +177,7 @@ class Install extends CommonPage {
 
   /**
    * Fill Database Form in step 5
-   * @param page
+   * @param page {Page} Browser tab
    * @return {Promise<void>}
    */
   async fillDatabaseForm(page) {
@@ -159,12 +185,13 @@ class Install extends CommonPage {
     await this.setValue(page, this.dbNameInput, global.INSTALL.DB_NAME);
     await this.setValue(page, this.dbLoginInput, global.INSTALL.DB_USER);
     await this.setValue(page, this.dbPasswordInput, global.INSTALL.DB_PASSWD);
+    await this.setValue(page, this.dbPrefixInput, global.INSTALL.DB_PREFIX);
   }
 
   /**
    * Check if database exist (if not, it will be created)
    * and check if all set properly to submit form
-   * @param page
+   * @param page {Page} Browser tab
    * @return {Promise<boolean>}
    */
   async isDatabaseConnected(page) {
@@ -179,32 +206,81 @@ class Install extends CommonPage {
   }
 
   /**
-   * Check if prestashop is installed properly
-   * @param page
-   * @return {Promise<*>}
+   * Check if progress bar is visible
+   * @param page {Page} Browser tab
+   * @returns {Promise<boolean>}
    */
-  async isInstallationSuccessful(page) {
-    await Promise.all([
-      this.waitForVisibleSelector(page, this.installationProgressBar, 30000),
-      this.waitForVisibleSelector(page, this.generateSettingsFileStep, 30000),
-      this.waitForVisibleSelector(page, this.installDatabaseStep, 60000),
-      this.waitForVisibleSelector(page, this.installDefaultDataStep, 120000),
-      this.waitForVisibleSelector(page, this.populateDatabaseStep, 180000),
-      this.waitForVisibleSelector(page, this.configureShopStep, 240000),
-      this.waitForVisibleSelector(page, this.installModulesStep, 360000),
-      this.waitForVisibleSelector(page, this.installModulesAddons, 360000),
-      this.waitForVisibleSelector(page, this.installThemeStep, 360000),
-      this.waitForVisibleSelector(page, this.installFixturesStep, 360000),
-      this.waitForVisibleSelector(page, this.installationFinishedStepPageTitle, 360000),
-    ]);
+  isInstallationInProgress(page) {
+    return this.elementVisible(page, this.installationProgressBar, 30000);
+  }
 
-    return true;
+  /**
+   * Check if step installation is finished
+   * @param page {Page} Browser tab
+   * @param step {string} The installation step
+   * @param timeout {number} Time to wait for step to finish
+   * @returns {Promise<boolean>}
+   */
+  async isInstallationStepFinished(page, step, timeout = 30000) {
+    let selector;
+
+    switch (step) {
+      case 'Generate Setting file':
+        selector = this.generateSettingsFileStep;
+        break;
+
+      case 'Install database':
+        selector = this.installDatabaseStep;
+        break;
+
+      case 'Default data':
+        selector = this.installDefaultDataStep;
+        break;
+
+      case 'Populate database':
+        selector = this.populateDatabaseStep;
+        break;
+
+      case 'Shop configuration':
+        selector = this.configureShopStep;
+        break;
+
+      case 'Install modules':
+        selector = this.installModulesStep;
+        break;
+
+      case 'Install theme':
+        selector = this.installThemeStep;
+        break;
+
+      case 'Install fixtures':
+        selector = this.installFixturesStep;
+        break;
+
+      case 'Post installation scripts':
+        selector = this.installPostInstall;
+        break;
+
+      default:
+        throw new Error(`${step} was not found as an option`);
+    }
+
+    return this.elementVisible(page, `${selector}.success`, timeout);
+  }
+
+  /**
+   * Check if prestashop is installed properly
+   * @param page {Page} Browser tab
+   * @return {Promise<boolean>}
+   */
+  isInstallationSuccessful(page) {
+    return this.elementVisible(page, this.installationFinishedStepPageTitle, 30000);
   }
 
   /**
    * Go to FO after Installation and check that Prestashop logo exist
-   * @param page
-   * @return {Promise<*>}
+   * @param page {Page} Browser tab
+   * @return {Promise<Page>}
    */
   async goToFOAfterInstall(page) {
     await this.waitForVisibleSelector(page, this.discoverFoButton);

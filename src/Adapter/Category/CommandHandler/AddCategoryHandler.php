@@ -31,6 +31,7 @@ use PrestaShop\PrestaShop\Adapter\Domain\AbstractObjectModelHandler;
 use PrestaShop\PrestaShop\Core\Domain\Category\Command\AddCategoryCommand;
 use PrestaShop\PrestaShop\Core\Domain\Category\CommandHandler\AddCategoryHandlerInterface;
 use PrestaShop\PrestaShop\Core\Domain\Category\Exception\CannotAddCategoryException;
+use PrestaShop\PrestaShop\Core\Domain\Category\Exception\CategoryConstraintException;
 use PrestaShop\PrestaShop\Core\Domain\Category\ValueObject\CategoryId;
 
 /**
@@ -80,6 +81,10 @@ final class AddCategoryHandler extends AbstractObjectModelHandler implements Add
             $category->description = $command->getLocalizedDescriptions();
         }
 
+        if (null !== $command->getLocalizedAdditionalDescriptions()) {
+            $category->additional_description = $command->getLocalizedAdditionalDescriptions();
+        }
+
         if (null !== $command->getLocalizedMetaTitles()) {
             $category->meta_title = $command->getLocalizedMetaTitles();
         }
@@ -97,11 +102,11 @@ final class AddCategoryHandler extends AbstractObjectModelHandler implements Add
         }
 
         if (false === $category->validateFields(false)) {
-            throw new CannotAddCategoryException('Invalid category data');
+            throw new CannotAddCategoryException('Invalid data for creating category.');
         }
 
         if (false === $category->validateFieldsLang(false)) {
-            throw new CannotAddCategoryException('Invalid category data');
+            throw new CannotAddCategoryException('Invalid language data for creating category.');
         }
 
         if (false === $category->add()) {

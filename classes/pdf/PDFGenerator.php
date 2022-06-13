@@ -31,12 +31,34 @@ class PDFGeneratorCore extends TCPDF
 {
     const DEFAULT_FONT = 'helvetica';
 
+    /**
+     * @var string
+     */
     public $header;
+
+    /**
+     * @var string
+     */
     public $footer;
+
+    /**
+     * @var string
+     */
     public $pagination;
+
+    /**
+     * @var string
+     */
     public $content;
+
+    /**
+     * @var string
+     */
     public $font;
 
+    /**
+     * @var array
+     */
     public $font_by_lang = [
         'ja' => 'cid0jp',
         'bg' => 'freeserif',
@@ -68,6 +90,7 @@ class PDFGeneratorCore extends TCPDF
         'zh' => 'cid0cs',
         'tw' => 'cid0cs',
         'th' => 'freeserif',
+        'hy' => 'freeserif',
     ];
 
     /**
@@ -171,7 +194,7 @@ class PDFGeneratorCore extends TCPDF
      * Render HTML template.
      *
      * @param string $filename
-     * @param bool $display true:display to user, false:save, 'I','D','S' as fpdf display
+     * @param bool|string $display true:display to user, false:save, 'I','D','S' as fpdf display
      *
      * @throws PrestaShopException
      *
@@ -199,7 +222,7 @@ class PDFGeneratorCore extends TCPDF
             $output = 'I';
         }
 
-        return $this->output($filename, $output);
+        return $this->Output($filename, $output);
     }
 
     /**
@@ -216,6 +239,10 @@ class PDFGeneratorCore extends TCPDF
 
     /**
      * Override of TCPDF::getRandomSeed() - getmypid() is blocked on several hosting.
+     *
+     * @param string $seed
+     *
+     * @return string
      */
     protected function getRandomSeed($seed = '')
     {

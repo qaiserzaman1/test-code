@@ -29,7 +29,13 @@ use PrestaShop\PrestaShop\Core\Product\Search\SortOrder;
 
 class NewProductsControllerCore extends ProductListingFrontController
 {
+    /** @var string */
     public $php_self = 'new-products';
+
+    public function getCanonicalURL(): string
+    {
+        return $this->buildPaginatedUrl($this->context->link->getPageLink('new-products'));
+    }
 
     /**
      * {@inheritdoc}
@@ -38,7 +44,7 @@ class NewProductsControllerCore extends ProductListingFrontController
     {
         parent::initContent();
 
-        $this->doProductSearch('catalog/listing/new-products');
+        $this->doProductSearch('catalog/listing/new-products', ['entity' => 'new-products']);
     }
 
     protected function getProductSearchQuery()

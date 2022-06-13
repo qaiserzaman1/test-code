@@ -28,18 +28,22 @@
     <div class="container-fluid">
       <Breadcrumb />
       <div class="title-row">
-        <h1 class="title">{{trans('head_title')}}</h1>
+        <h1 class="title">
+          {{ trans('head_title') }}
+        </h1>
       </div>
     </div>
     <Tabs />
   </div>
 </template>
 
-<script>
-  import Breadcrumb from './breadcrumb';
-  import Tabs from './tabs';
+<script lang="ts">
+  import Vue from 'vue';
+  import ComponentsMap from '@components/components-map';
+  import Breadcrumb from './breadcrumb.vue';
+  import Tabs from './tabs.vue';
 
-  const $ = global.$;
+  const {$} = window;
 
   function getOldHeaderToolbarButtons() {
     return $('.header-toolbar')
@@ -47,15 +51,23 @@
       .find('.toolbar-icons');
   }
 
-  export default {
+  function getNotificationsElements() {
+    return $(`${ComponentsMap.ajaxConfirmation}, #${ComponentsMap.contextualNotification.messageBoxId}`);
+  }
+
+  export default Vue.extend({
     components: {
       Breadcrumb,
       Tabs,
     },
     mounted() {
+      const $vueElement = $(this.$el);
       // move the toolbar buttons to this header
       const toolbarButtons = getOldHeaderToolbarButtons();
-      toolbarButtons.insertAfter($(this.$el).find('.title-row > .title'));
+      toolbarButtons.insertAfter($vueElement.find('.title-row > .title'));
+
+      const notifications = getNotificationsElements();
+      notifications.insertAfter($vueElement);
 
       // signal header change (so size can be updated)
       const event = $.Event('vueHeaderMounted', {
@@ -63,5 +75,5 @@
       });
       $(document).trigger(event);
     },
-  };
+  });
 </script>

@@ -28,7 +28,6 @@ namespace PrestaShopBundle\Form\Admin\Configure\ShopParameters\CustomerPreferenc
 
 use PrestaShop\PrestaShop\Core\Configuration\DataConfigurationInterface;
 use PrestaShop\PrestaShop\Core\Form\FormDataProviderInterface;
-use Symfony\Component\Translation\TranslatorInterface;
 
 /**
  * Class is responsible of managing the data manipulated using forms
@@ -41,17 +40,9 @@ final class CustomerPreferencesDataProvider implements FormDataProviderInterface
      */
     private $generalDataConfiguration;
 
-    /**
-     * @var TranslatorInterface
-     */
-    private $translator;
-
-    public function __construct(
-        DataConfigurationInterface $generalDataConfiguration,
-        TranslatorInterface $translator
-    ) {
+    public function __construct(DataConfigurationInterface $generalDataConfiguration)
+    {
         $this->generalDataConfiguration = $generalDataConfiguration;
-        $this->translator = $translator;
     }
 
     /**
@@ -59,9 +50,7 @@ final class CustomerPreferencesDataProvider implements FormDataProviderInterface
      */
     public function getData()
     {
-        return [
-            'general' => $this->generalDataConfiguration->getConfiguration(),
-        ];
+        return $this->generalDataConfiguration->getConfiguration();
     }
 
     /**
@@ -69,35 +58,6 @@ final class CustomerPreferencesDataProvider implements FormDataProviderInterface
      */
     public function setData(array $data)
     {
-        if ($errors = $this->validate($data)) {
-            return $errors;
-        }
-
-        return $this->generalDataConfiguration->updateConfiguration($data['general']);
-    }
-
-    /**
-     * Perform validations on form data.
-     *
-     * @param array $data
-     *
-     * @return array Array of errors if any
-     */
-    private function validate(array $data)
-    {
-        $errors = [];
-
-        $passwordResetDelay = $data['general']['password_reset_delay'];
-        if (!is_numeric($passwordResetDelay) || $passwordResetDelay < 0) {
-            $fieldName = $this->translator->trans('Password reset delay', [], 'Admin.Shopparameters.Feature');
-
-            $errors[] = [
-                'key' => 'The %s field is invalid.',
-                'domain' => 'Admin.Notifications.Error',
-                'parameters' => [$fieldName],
-            ];
-        }
-
-        return $errors;
+        return $this->generalDataConfiguration->updateConfiguration($data);
     }
 }

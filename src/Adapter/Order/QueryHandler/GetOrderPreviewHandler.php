@@ -33,7 +33,7 @@ use Customer;
 use Group;
 use Order;
 use OrderCarrier;
-use PrestaShop\Decimal\Number;
+use PrestaShop\Decimal\DecimalNumber;
 use PrestaShop\PrestaShop\Adapter\Address\AddressFormatter;
 use PrestaShop\PrestaShop\Adapter\Entity\Address;
 use PrestaShop\PrestaShop\Core\Address\AddressFormatterInterface;
@@ -147,7 +147,7 @@ final class GetOrderPreviewHandler implements GetOrderPreviewHandlerInterface
             $address->postcode,
             $stateName,
             $country->name[(int) $order->getAssociatedLanguage()->getId()],
-            $customer ? $customer->email : null,
+            $customer->email,
             $address->phone,
             $dni
         );
@@ -212,8 +212,8 @@ final class GetOrderPreviewHandler implements GetOrderPreviewHandlerInterface
             $unitPrice = $detail['unit_price_tax_excl'];
             $totalPrice = $detail['total_price_tax_excl'];
 
-            $totalPriceTaxIncl = new Number($detail['total_price_tax_incl']);
-            $totalPriceTaxExcl = new Number($detail['total_price_tax_excl']);
+            $totalPriceTaxIncl = new DecimalNumber($detail['total_price_tax_incl']);
+            $totalPriceTaxExcl = new DecimalNumber($detail['total_price_tax_excl']);
 
             $totalTaxAmount = $totalPriceTaxIncl->minus($totalPriceTaxExcl);
 
@@ -233,7 +233,8 @@ final class GetOrderPreviewHandler implements GetOrderPreviewHandlerInterface
                 (int) $detail['product_quantity'],
                 $locale->formatPrice($unitPrice, $currency->iso_code),
                 $locale->formatPrice($totalPrice, $currency->iso_code),
-                $locale->formatPrice((string) $totalTaxAmount, $currency->iso_code)
+                $locale->formatPrice((string) $totalTaxAmount, $currency->iso_code),
+                (int) $detail['id_product']
             );
         }
 

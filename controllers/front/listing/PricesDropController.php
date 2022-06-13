@@ -29,7 +29,13 @@ use PrestaShop\PrestaShop\Core\Product\Search\SortOrder;
 
 class PricesDropControllerCore extends ProductListingFrontController
 {
+    /** @var string */
     public $php_self = 'prices-drop';
+
+    public function getCanonicalURL(): string
+    {
+        return $this->buildPaginatedUrl($this->context->link->getPageLink('prices-drop'));
+    }
 
     /**
      * {@inheritdoc}
@@ -38,7 +44,7 @@ class PricesDropControllerCore extends ProductListingFrontController
     {
         parent::initContent();
 
-        $this->doProductSearch('catalog/listing/prices-drop');
+        $this->doProductSearch('catalog/listing/prices-drop', ['entity' => 'prices-drop']);
     }
 
     protected function getProductSearchQuery()
@@ -61,7 +67,7 @@ class PricesDropControllerCore extends ProductListingFrontController
     public function getListingLabel()
     {
         return $this->trans(
-            'On sale',
+            'Prices drop',
             [],
             'Shop.Theme.Catalog'
         );
@@ -72,7 +78,7 @@ class PricesDropControllerCore extends ProductListingFrontController
         $breadcrumb = parent::getBreadcrumbLinks();
 
         $breadcrumb['links'][] = [
-            'title' => $this->trans('On sale', [], 'Shop.Theme.Catalog'),
+            'title' => $this->trans('Prices drop', [], 'Shop.Theme.Catalog'),
             'url' => $this->context->link->getPageLink('prices-drop', true),
         ];
 

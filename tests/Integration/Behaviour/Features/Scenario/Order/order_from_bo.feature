@@ -1,5 +1,6 @@
 # ./vendor/bin/behat -c tests/Integration/Behaviour/behat.yml -s order --tags order-from-bo
-@reset-database-before-feature
+@restore-all-tables-before-feature
+@clear-cache-before-feature
 @order-from-bo
 Feature: Order from Back Office (BO)
   In order to manage orders for FO customers
@@ -97,10 +98,10 @@ Feature: Order from Back Office (BO)
       | transaction_id | test123             |
       | currency       | USD                 |
       | amount         | 6.00                |
-    Then order "bo_order1" payments should have the following details:
+    Then order "bo_order1" payment in first position should have the following details:
       | date           | 2019-11-26 13:56:23 |
-      | payment_method | Payments by check   |
-      | transaction_id | test123             |
+      | paymentMethod  | Payments by check   |
+      | transactionId  | test123             |
       | amount         | $6.00               |
     And order "bo_order1" should have following details:
       | total_products           | 23.80 |
@@ -261,7 +262,7 @@ Feature: Order from Back Office (BO)
       | name          | Mug Today is a good day |
       | amount        | -1                      |
       | price         | 16                      |
-    Then I should get error that product quantity is invalid
+    Then I should get error that product quantity is invalid for order
     Then order "bo_order1" should contain 2 products "Mug Today is a good day"
 
   Scenario: Add product with zero quantity is forbidden
@@ -275,7 +276,7 @@ Feature: Order from Back Office (BO)
       | name          | Mug Today is a good day |
       | amount        | -1                      |
       | price         | 16                      |
-    Then I should get error that product quantity is invalid
+    Then I should get error that product quantity is invalid for order
     Then order "bo_order1" should contain 2 products "Mug Today is a good day"
 
   Scenario: Add product with quantity higher than stock is forbidden
@@ -385,7 +386,7 @@ Feature: Order from Back Office (BO)
     When I edit product "Mug The best is yet to come" to order "bo_order1" with following products details:
       | amount        | 0                       |
       | price         | 12                      |
-    Then I should get error that product quantity is invalid
+    Then I should get error that product quantity is invalid for order
     And order "bo_order1" should contain 2 products "Mug The best is yet to come"
     And product "Mug The best is yet to come" in order "bo_order1" has following details:
       | product_quantity            | 2      |
@@ -411,7 +412,7 @@ Feature: Order from Back Office (BO)
     When I edit product "Mug The best is yet to come" to order "bo_order1" with following products details:
       | amount        | -1                      |
       | price         | 12                      |
-    Then I should get error that product quantity is invalid
+    Then I should get error that product quantity is invalid for order
     And order "bo_order1" should contain 2 products "Mug The best is yet to come"
     And product "Mug The best is yet to come" in order "bo_order1" has following details:
       | product_quantity            | 2      |
@@ -493,7 +494,7 @@ Feature: Order from Back Office (BO)
     Given I create customer "testFirstName" with following details:
       | firstName        | testFirstName                      |
       | lastName         | testLastName                       |
-      | email            | test.davidsonas@invertus.eu        |
+      | email            | test@mailexample.eu                |
       | password         | secret                             |
     When I add new address to customer "testFirstName" with following details:
       | Address alias    | test-address                       |
@@ -506,6 +507,12 @@ Feature: Order from Back Office (BO)
       | Postal code      | 12345                              |
     When I change order "bo_order1" shipping address to "test-address"
     Then order "bo_order1" shipping address should be "test-address"
+
+  Scenario: Change order internal note
+    When I change order "bo_order1" note to "Test note."
+    Then order "bo_order1" note should be "Test note."
+    When I change order "bo_order1" note to ""
+    Then order "bo_order1" note should be ""
 
   Scenario: Edit a product that doesn't exist in catalogue anymore
     When I add products to order "bo_order1" with new invoice and the following products details:

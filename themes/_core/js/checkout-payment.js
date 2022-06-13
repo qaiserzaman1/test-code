@@ -22,36 +22,63 @@
  * @copyright Since 2007 PrestaShop SA and Contributors
  * @license   https://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
  */
-import $ from 'jquery'
+import $ from 'jquery';
+import prestashop from 'prestashop';
+
+prestashop.checkout = prestashop.checkout || {};
+
+prestashop.checkout.onCheckOrderableCartResponse = (resp, paymentObject) => {
+  if (resp.errors === true) {
+    prestashop.emit('orderConfirmationErrors', {
+      resp,
+      paymentObject,
+    });
+    return true;
+  }
+  return false;
+};
 
 class Payment {
   constructor() {
-    this.confirmationSelector = '#payment-confirmation';
-    this.paymentSelector = '#payment-section';
-    this.conditionsSelector = '#conditions-to-approve';
-    this.conditionAlertSelector = '.js-alert-payment-conditions';
-    this.additionalInformatonSelector = '.js-additional-information';
-    this.optionsForm = '.js-payment-option-form';
+    this.confirmationSelector = prestashop.selectors.checkout.confirmationSelector;
+    this.conditionsSelector = prestashop.selectors.checkout.conditionsSelector;
+    this.conditionAlertSelector = prestashop.selectors.checkout.conditionAlertSelector;
+    this.additionalInformatonSelector = prestashop.selectors.checkout.additionalInformatonSelector;
+    this.optionsForm = prestashop.selectors.checkout.optionsForm;
+    this.termsCheckboxSelector = prestashop.selectors.checkout.termsCheckboxSelector;
   }
 
   init() {
-    $(this.paymentSelector + ' input[type="checkbox"][disabled]').attr('disabled', false);
+    // eslint-disable-next-line no-unused-vars
+    prestashop.on('orderConfirmationErrors', ({resp, paymentObject}) => {
+      if (resp.cartUrl !== '') {
+        location.href = resp.cartUrl;
+      }
+    });
 
-    let $body = $('body');
+    const $body = $('body');
 
-    $body.on('change', this.conditionsSelector + ' input[type="checkbox"]', $.proxy(this.toggleOrderButton, this));
+    $body.on('change', `${this.conditionsSelector} input[type="checkbox"]`, $.proxy(this.toggleOrderButton, this));
     $body.on('change', 'input[name="payment-option"]', $.proxy(this.toggleOrderButton, this));
-    $body.on('click', this.confirmationSelector + ' button', $.proxy(this.confirm, this));
+    // call toggle once on init to handle situation where everything
+    // is already ok (like 0 price order, payment already preselected and so on)
+    this.toggleOrderButton();
+
+    $body.on('click', `${this.confirmationSelector} button`, $.proxy(this.confirm, this));
 
     this.collapseOptions();
   }
 
   collapseOptions() {
-    $(this.additionalInformatonSelector + ', ' + this.optionsForm).hide();
+    $(`${this.additionalInformatonSelector}, ${this.optionsForm}`).hide();
   }
 
   getSelectedOption() {
     return $('input[name="payment-option"]:checked').attr('id');
+  }
+
+  haveTermsBeenAccepted() {
+    return $(this.termsCheckboxSelector).prop('checked');
   }
 
   hideConfirmation() {
@@ -63,28 +90,42 @@ class Payment {
   }
 
   toggleOrderButton() {
-    var show = true;
-    $(this.conditionsSelector + ' input[type="checkbox"]').each((_, checkbox) => {
+    let show = true;
+    $(`${this.conditionsSelector} input[type="checkbox"]`).each((_, checkbox) => {
       if (!checkbox.checked) {
         show = false;
       }
     });
 
+    prestashop.emit('termsUpdated', {
+      isChecked: show,
+    });
+
     this.collapseOptions();
 
-    var selectedOption = this.getSelectedOption();
+    const selectedOption = this.getSelectedOption();
+
     if (!selectedOption) {
       show = false;
     }
 
-    $('#' + selectedOption + '-additional-information').show();
-    $('#pay-with-' + selectedOption + '-form').show();
+    $(`#${selectedOption}-additional-information`).show();
+    $(`#pay-with-${selectedOption}-form`).show();
 
-    $('.js-payment-binary').hide();
-    if ($('#' + selectedOption).hasClass('binary')) {
-      var paymentOption = this.getPaymentOptionSelector(selectedOption);
+    $(prestashop.selectors.checkout.paymentBinary).hide();
+
+    if ($(`#${selectedOption}`).hasClass('binary')) {
+      const paymentOption = this.getPaymentOptionSelector(selectedOption);
       this.hideConfirmation();
       $(paymentOption).show();
+
+      document.querySelectorAll(`${paymentOption} button, ${paymentOption} input`).forEach((element) => {
+        if (show) {
+          element.removeAttribute('disabled');
+        } else {
+          element.setAttribute('disabled', !show);
+        }
+      });
 
       if (show) {
         $(paymentOption).removeClass('disabled');
@@ -93,7 +134,9 @@ class Payment {
       }
     } else {
       this.showConfirmation();
-      $(this.confirmationSelector + ' button').attr('disabled', !show);
+      $(`${this.confirmationSelector} button`).toggleClass('disabled', !show);
+      // Next line provides backward compatibility for Classic Theme < 1.7.8
+      $(`${this.confirmationSelector} button`).attr('disabled', !show);
 
       if (show) {
         $(this.conditionAlertSelector).hide();
@@ -104,22 +147,45 @@ class Payment {
   }
 
   getPaymentOptionSelector(option) {
-    var moduleName = $(`#${option}`).data('module-name');
+    const moduleName = $(`#${option}`).data('module-name');
 
     return `.js-payment-${moduleName}`;
   }
 
-  confirm() {
-    var option = this.getSelectedOption();
-    if (option) {
-      $(this.confirmationSelector + ' button').prop('disabled', true);
-      $('#pay-with-' + option + '-form form').submit();
+  showNativeFormErrors() {
+    $(`input[name=payment-option], ${this.termsCheckboxSelector}`).each(function () {
+      this.reportValidity();
+    });
+  }
+
+  async confirm() {
+    const option = this.getSelectedOption();
+    const termsAccepted = this.haveTermsBeenAccepted();
+
+    if (option === undefined || termsAccepted === false) {
+      this.showNativeFormErrors();
+      return;
     }
+
+    // We ask cart controller, if everything in the cart is still orderable
+    const resp = await $.post(window.prestashop.urls.pages.order, {
+      ajax: 1,
+      action: 'checkCartStillOrderable',
+    });
+
+    // We process the information and allow other modules to intercept this
+    const isRedirected = prestashop.checkout.onCheckOrderableCartResponse(resp, this);
+
+    // If there is a redirect, we deny the form submit below, to allow the redirect to complete
+    if (isRedirected) return;
+
+    $(`${this.confirmationSelector} button`).addClass('disabled');
+    $(`#pay-with-${option}-form form`).submit();
   }
 }
 
 export default function () {
-  let payment = new Payment();
+  const payment = new Payment();
   payment.init();
 
   return payment;

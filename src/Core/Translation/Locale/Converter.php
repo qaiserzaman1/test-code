@@ -27,6 +27,8 @@
 
 namespace PrestaShop\PrestaShop\Core\Translation\Locale;
 
+use Exception;
+
 /**
  * Helper to manipulate the locales (IETF language tag) specific to PrestaShop
  *
@@ -42,17 +44,19 @@ final class Converter
     /**
      * @param string $translationsMappingFile
      */
-    public function __construct($translationsMappingFile)
+    public function __construct(string $translationsMappingFile)
     {
         $this->translationsMappingFile = $translationsMappingFile;
     }
 
     /**
-     * @var string the locale (like "fr-FR")
+     * @param string $locale the locale (like "fr-FR")
      *
      * @return string|bool the legacy PrestaShop locale (like "fr")
+     *
+     * @throws Exception
      */
-    public function toLegacyLocale($locale)
+    public function toLegacyLocale(string $locale)
     {
         return array_search($locale, $this->getLangToLocalesMapping());
     }
@@ -61,8 +65,10 @@ final class Converter
      * @param string $legacyLocale the legacy PrestaShop locale
      *
      * @return string|bool the locale
+     *
+     * @throws Exception
      */
-    public function toLanguageTag($legacyLocale)
+    public function toLanguageTag(string $legacyLocale)
     {
         $mappingLocales = $this->getLangToLocalesMapping();
 
@@ -72,9 +78,11 @@ final class Converter
     /**
      * Get the PrestaShop locale from real locale (like "fr-FR")
      *
+     * @param string $locale
+     *
      * @return string The PrestaShop locale (like "fr_FR")
      */
-    public static function toPrestaShopLocale($locale)
+    public static function toPrestaShopLocale(string $locale): string
     {
         return str_replace('-', '_', $locale);
     }

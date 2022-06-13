@@ -1,14 +1,23 @@
 require('module-alias/register');
 const BOBasePage = require('@pages/BO/BObasePage');
 
+/**
+ * Add catalog price rule page, contains functions that can be used on the page
+ * @class
+ * @extends BOBasePage
+ */
 class CatalogPriceRules extends BOBasePage {
+  /**
+   * @constructs
+   * Setting up texts and selectors to use on add catalog price rule page
+   */
   constructor() {
     super();
 
     this.pageTitle = 'Catalog Price Rules •';
 
     // Selectors header
-    this.addNewCatalogPriceRuleButton = '#page-header-desc-specific_price_rule-new_specific_price_rule';
+    this.addNewCatalogPriceRuleButton = 'a[data-role=page-header-desc-specific_price_rule-link]';
 
     // Form selectors
     this.gridForm = '#form-specific_price_rule';
@@ -65,7 +74,7 @@ class CatalogPriceRules extends BOBasePage {
   /* Methods */
   /**
    * Go to add new Catalog price rule page
-   * @param page
+   * @param page {Page} Browser tab
    * @returns {Promise<void>}
    */
   async goToAddNewCatalogPriceRulePage(page) {
@@ -74,7 +83,7 @@ class CatalogPriceRules extends BOBasePage {
 
   /**
    * Reset all filters
-   * @param page
+   * @param page {Page} Browser tab
    * @return {Promise<void>}
    */
   async resetFilter(page) {
@@ -85,8 +94,8 @@ class CatalogPriceRules extends BOBasePage {
   }
 
   /**
-   * Get Number of catalog price rules
-   * @param page
+   * Get number of catalog price rules
+   * @param page {Page} Browser tab
    * @return {Promise<number>}
    */
   getNumberOfElementInGrid(page) {
@@ -95,7 +104,7 @@ class CatalogPriceRules extends BOBasePage {
 
   /**
    * Reset and get number of catalog price rules
-   * @param page
+   * @param page {Page} Browser tab
    * @return {Promise<number>}
    */
   async resetAndGetNumberOfLines(page) {
@@ -107,8 +116,8 @@ class CatalogPriceRules extends BOBasePage {
 
   /**
    * Go to edit catalog price rule page
-   * @param page
-   * @param ruleName
+   * @param page {Page} Browser tab
+   * @param ruleName {string} Value of rule name to edit
    * @returns {Promise<void>}
    */
   async goToEditCatalogPriceRulePage(page, ruleName) {
@@ -120,16 +129,16 @@ class CatalogPriceRules extends BOBasePage {
 
   /**
    * Filter catalog price rules table
-   * @param page
-   * @param filterType
-   * @param filterBy
-   * @param value
+   * @param page {Page} Browser tab
+   * @param filterType {string} Input or select to choose method of filter
+   * @param filterBy {string} Column to filter
+   * @param value  {string} Value to put on filter
    * @returns {Promise<void>}
    */
   async filterPriceRules(page, filterType, filterBy, value) {
     switch (filterType) {
       case 'input':
-        await this.setValue(page, this.filterColumn(filterBy), value.toString());
+        await this.setValue(page, this.filterColumn(filterBy), value);
         await this.clickAndWaitForNavigation(page, this.filterSearchButton);
         break;
 
@@ -147,10 +156,10 @@ class CatalogPriceRules extends BOBasePage {
 
   /**
    * Filter by date
-   * @param page
-   * @param filterBy
-   * @param dateFrom
-   * @param dateTo
+   * @param page {Page} Browser tab
+   * @param filterBy {string} Column to filter
+   * @param dateFrom {string} Value of 'date from' to set on input
+   * @param dateTo {string} Value of 'date to' to set on input
    * @returns {Promise<void>}
    */
   async filterByDate(page, filterBy, dateFrom, dateTo) {
@@ -162,8 +171,8 @@ class CatalogPriceRules extends BOBasePage {
 
   /**
    * Delete catalog price rule
-   * @param page
-   * @param ruleName
+   * @param page {Page} Browser tab
+   * @param ruleName {string} Value of rule name to delete
    * @returns {Promise<string>}
    */
   async deleteCatalogPriceRule(page, ruleName) {
@@ -176,14 +185,15 @@ class CatalogPriceRules extends BOBasePage {
       this.waitForVisibleSelector(page, this.confirmDeleteButton),
     ]);
     await this.clickAndWaitForNavigation(page, this.confirmDeleteButton);
+
     return this.getAlertSuccessBlockContent(page);
   }
 
   /**
    * Get text from column in table
-   * @param page
-   * @param row
-   * @param columnName
+   * @param page {Page} Browser tab
+   * @param row {number} Row on table
+   * @param columnName {string} Column name to get text content
    * @return {Promise<string>}
    */
   async getTextColumn(page, row, columnName) {
@@ -198,40 +208,36 @@ class CatalogPriceRules extends BOBasePage {
         columnSelector = this.tableColumn(row, 3);
         break;
 
-      case 's!name':
+      case 'cul!name':
         columnSelector = this.tableColumn(row, 4);
         break;
 
-      case 'cul!name':
+      case 'cl!name':
         columnSelector = this.tableColumn(row, 5);
         break;
 
-      case 'cl!name':
+      case 'gl!name':
         columnSelector = this.tableColumn(row, 6);
         break;
 
-      case 'gl!name':
+      case 'from_quantity':
         columnSelector = this.tableColumn(row, 7);
         break;
 
-      case 'from_quantity':
+      case 'a!reduction_type':
         columnSelector = this.tableColumn(row, 8);
         break;
 
-      case 'a!reduction_type':
+      case 'reduction':
         columnSelector = this.tableColumn(row, 9);
         break;
 
-      case 'reduction':
+      case 'from':
         columnSelector = this.tableColumn(row, 10);
         break;
 
-      case 'from':
-        columnSelector = this.tableColumn(row, 11);
-        break;
-
       case 'to':
-        columnSelector = this.tableColumn(row, 12);
+        columnSelector = this.tableColumn(row, 11);
         break;
 
       default:
@@ -257,7 +263,7 @@ class CatalogPriceRules extends BOBasePage {
 
   /**
    * Bulk delete price rules
-   * @param page
+   * @param page {Page} Browser tab
    * @return {Promise<void>}
    */
   async bulkDeletePriceRules(page) {
@@ -278,9 +284,9 @@ class CatalogPriceRules extends BOBasePage {
   // Sort methods
   /**
    * Get content from all rows
-   * @param page
-   * @param columnName
-   * @return {Promise<[]>}
+   * @param page {Page} Browser tab
+   * @param columnName {string} Column name to get all rows column
+   * @return {Promise<Array<string>>}
    */
   async getAllRowsColumnContent(page, columnName) {
     const rowsNumber = await this.getNumberOfElementInGrid(page);
@@ -288,7 +294,7 @@ class CatalogPriceRules extends BOBasePage {
 
     for (let i = 1; i <= rowsNumber; i++) {
       const rowContent = await this.getTextColumn(page, i, columnName);
-      await allRowsContentTable.push(rowContent);
+      allRowsContentTable.push(rowContent);
     }
 
     return allRowsContentTable;
@@ -296,9 +302,9 @@ class CatalogPriceRules extends BOBasePage {
 
   /**
    * Sort table
-   * @param page
-   * @param sortBy, column to sort with
-   * @param sortDirection, asc or desc
+   * @param page {Page} Browser tab
+   * @param sortBy {string} Column to sort with
+   * @param sortDirection {string} Sort direction asc or desc
    * @return {Promise<void>}
    */
   async sortTable(page, sortBy, sortDirection) {
@@ -313,40 +319,36 @@ class CatalogPriceRules extends BOBasePage {
         columnSelector = this.sortColumnDiv(3);
         break;
 
-      case 's!name':
+      case 'cul!name':
         columnSelector = this.sortColumnDiv(4);
         break;
 
-      case 'cul!name':
+      case 'cl!name':
         columnSelector = this.sortColumnDiv(5);
         break;
 
-      case 'cl!name':
+      case 'gl!name':
         columnSelector = this.sortColumnDiv(6);
         break;
 
-      case 'gl!name':
+      case 'from_quantity':
         columnSelector = this.sortColumnDiv(7);
         break;
 
-      case 'from_quantity':
+      case 'a!reduction_type':
         columnSelector = this.sortColumnDiv(8);
         break;
 
-      case 'a!reduction_type':
+      case 'reduction':
         columnSelector = this.sortColumnDiv(9);
         break;
 
-      case 'reduction':
+      case 'from':
         columnSelector = this.sortColumnDiv(10);
         break;
 
-      case 'from':
-        columnSelector = this.sortColumnDiv(11);
-        break;
-
       case 'to':
-        columnSelector = this.sortColumnDiv(12);
+        columnSelector = this.sortColumnDiv(11);
         break;
 
       default:
@@ -360,7 +362,7 @@ class CatalogPriceRules extends BOBasePage {
   /* Pagination methods */
   /**
    * Get pagination label
-   * @param page
+   * @param page {Page} Browser tab
    * @return {Promise<string>}
    */
   getPaginationLabel(page) {
@@ -369,8 +371,8 @@ class CatalogPriceRules extends BOBasePage {
 
   /**
    * Select pagination limit
-   * @param page
-   * @param number
+   * @param page {Page} Browser tab
+   * @param number {number} Value of pagination limit to select
    * @returns {Promise<string>}
    */
   async selectPaginationLimit(page, number) {
@@ -382,7 +384,7 @@ class CatalogPriceRules extends BOBasePage {
 
   /**
    * Click on next
-   * @param page
+   * @param page {Page} Browser tab
    * @returns {Promise<string>}
    */
   async paginationNext(page) {
@@ -393,7 +395,7 @@ class CatalogPriceRules extends BOBasePage {
 
   /**
    * Click on previous
-   * @param page
+   * @param page {Page} Browser tab
    * @returns {Promise<string>}
    */
   async paginationPrevious(page) {

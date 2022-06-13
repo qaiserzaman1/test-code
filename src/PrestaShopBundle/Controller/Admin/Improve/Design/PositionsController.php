@@ -27,10 +27,15 @@
 namespace PrestaShopBundle\Controller\Admin\Improve\Design;
 
 use Hook;
-use PrestaShop\PrestaShop\Adapter\Module\Module;
+use PrestaShop\PrestaShop\Core\Domain\Hook\Command\UpdateHookStatusCommand;
+use PrestaShop\PrestaShop\Core\Domain\Hook\Exception\HookException;
+use PrestaShop\PrestaShop\Core\Domain\Hook\Exception\HookNotFoundException;
+use PrestaShop\PrestaShop\Core\Domain\Hook\Exception\HookUpdateHookException;
+use PrestaShop\PrestaShop\Core\Domain\Hook\Query\GetHookStatus;
 use PrestaShopBundle\Controller\Admin\FrameworkBundleAdminController;
 use PrestaShopBundle\Security\Annotation\AdminSecurity;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Template;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -48,14 +53,23 @@ class PositionsController extends FrameworkBundleAdminController
      * Display hooks positions.
      *
      * @Template("@PrestaShop/Admin/Improve/Design/positions.html.twig")
-     * @AdminSecurity("is_granted(['read', 'update', 'create', 'delete'], request.get('_legacy_controller')~'_')", message="Access denied.")
+     * @AdminSecurity(
+     *     "is_granted('read', request.get('_legacy_controller')~'_') && is_granted('update', request.get('_legacy_controller')~'_') && is_granted('create', request.get('_legacy_controller')~'_') && is_granted('delete', request.get('_legacy_controller')~'_')",
+     *     message="Access denied.")
      *
      * @param Request $request
      *
-     * @return Response
+     * @return array<string, mixed>
      */
     public function indexAction(Request $request)
     {
+        $isSingleShopContext = $this->get('prestashop.adapter.shop.context')->isSingleShopContext();
+        if (!$isSingleShopContext) {
+            return [
+                'isSingleShopContext' => $isSingleShopContext,
+            ];
+        }
+
         $moduleAdapter = $this->get('prestashop.adapter.legacy.module');
         $hookProvider = $this->get('prestashop.adapter.legacy.hook');
         $installedModules = $moduleAdapter->getModulesInstalled();
@@ -123,7 +137,6 @@ class PositionsController extends FrameworkBundleAdminController
             ],
             'selectedModule' => $this->selectedModule,
             'layoutTitle' => $this->trans('Positions', 'Admin.Navigation.Menu'),
-            'requireAddonsSearch' => false,
             'requireBulkActions' => false,
             'requireFilterStatus' => false,
             'showContentHeader' => true,
@@ -131,14 +144,14 @@ class PositionsController extends FrameworkBundleAdminController
             'help_link' => $this->generateSidebarLink('AdminModulesPositions'),
             'hooks' => $hooks,
             'modules' => $modules,
-            'canMove' => $this->get('prestashop.adapter.shop.context')->isSingleShopContext(),
+            'isSingleShopContext' => $isSingleShopContext,
         ];
     }
 
     /**
      * Unhook module.
      *
-     * @AdminSecurity("is_granted(['delete'], request.get('_legacy_controller')~'_')", message="Access denied.")
+     * @AdminSecurity("is_granted('delete', request.get('_legacy_controller')~'_')", message="Access denied.")
      *
      * @param Request $request
      *
@@ -230,5 +243,49 @@ class PositionsController extends FrameworkBundleAdminController
                 $messages[$messageId]
             );
         }
+    }
+
+    /**
+     * Toggle hook status
+     *
+     * @AdminSecurity("is_granted('update', request.get('_legacy_controller')~'_')", message="Access denied.")
+     *
+     * @param Request $request
+     *
+     * @return JsonResponse
+     */
+    public function toggleStatusAction(Request $request)
+    {
+        $hookId = (int) $request->request->get('hookId');
+        $hookStatus = false;
+
+        try {
+            $hookStatus = $this->getQueryBus()->handle(new GetHookStatus($hookId));
+            $this->getCommandBus()->handle(new UpdateHookStatusCommand($hookId, (bool) $hookStatus));
+            $response = [
+                'status' => true,
+                'message' => $this->trans('The status has been successfully updated.', 'Admin.Notifications.Success'),
+            ];
+        } catch (HookException $e) {
+            $response = [
+                'status' => false,
+                'message' => $this->getErrorMessageForException($e, $this->getErrorMessages()),
+            ];
+        }
+
+        $response['hook_status'] = !$hookStatus;
+
+        return $this->json($response);
+    }
+
+    /**
+     * @return array
+     */
+    private function getErrorMessages(): array
+    {
+        return [
+            HookNotFoundException::class => $this->trans('The object cannot be loaded (or found)', 'Admin.Notifications.Error'),
+            HookUpdateHookException::class => $this->trans('An error occurred while updating the status for an object.', 'Admin.Notifications.Error'),
+        ];
     }
 }

@@ -28,12 +28,10 @@ namespace PrestaShop\PrestaShop\Core\Domain\MailTemplate\CommandHandler;
 
 use PrestaShop\PrestaShop\Core\Domain\MailTemplate\Command\GenerateThemeMailTemplatesCommand;
 use PrestaShop\PrestaShop\Core\Exception\InvalidArgumentException;
-use PrestaShop\PrestaShop\Core\Language\LanguageInterface;
 use PrestaShop\PrestaShop\Core\Language\LanguageRepositoryInterface;
 use PrestaShop\PrestaShop\Core\MailTemplate\MailTemplateGenerator;
 use PrestaShop\PrestaShop\Core\MailTemplate\ThemeCatalogInterface;
 use PrestaShop\PrestaShop\Core\MailTemplate\ThemeInterface;
-use Symfony\Component\Translation\TranslatorInterface;
 
 /**
  * Class GenerateThemeMailTemplatesCommandHandler generates email templates with parameters provided
@@ -51,9 +49,6 @@ class GenerateThemeMailTemplatesCommandHandler implements GenerateThemeMailTempl
     /** @var MailTemplateGenerator */
     private $generator;
 
-    /** @var TranslatorInterface */
-    private $translator;
-
     /** @var string */
     private $defaultCoreMailsFolder;
 
@@ -64,7 +59,6 @@ class GenerateThemeMailTemplatesCommandHandler implements GenerateThemeMailTempl
      * @param LanguageRepositoryInterface $languageRepository
      * @param ThemeCatalogInterface $themeCatalog
      * @param MailTemplateGenerator $generator
-     * @param TranslatorInterface $translator
      * @param string $defaultCoreMailsFolder
      * @param string $defaultModulesMailFolder
      */
@@ -72,14 +66,12 @@ class GenerateThemeMailTemplatesCommandHandler implements GenerateThemeMailTempl
         LanguageRepositoryInterface $languageRepository,
         ThemeCatalogInterface $themeCatalog,
         MailTemplateGenerator $generator,
-        TranslatorInterface $translator,
         $defaultCoreMailsFolder,
         $defaultModulesMailFolder
     ) {
         $this->languageRepository = $languageRepository;
         $this->themeCatalog = $themeCatalog;
         $this->generator = $generator;
-        $this->translator = $translator;
         $this->defaultCoreMailsFolder = $defaultCoreMailsFolder;
         $this->defaultModulesMailFolder = $defaultModulesMailFolder;
     }
@@ -89,7 +81,6 @@ class GenerateThemeMailTemplatesCommandHandler implements GenerateThemeMailTempl
      */
     public function handle(GenerateThemeMailTemplatesCommand $command)
     {
-        /** @var LanguageInterface $language */
         $language = $this->languageRepository->getOneByLocaleOrIsoCode($command->getLanguage());
         if (null === $language) {
             throw new InvalidArgumentException(sprintf('Could not find Language for locale: %s', $command->getLanguage()));

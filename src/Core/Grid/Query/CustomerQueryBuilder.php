@@ -78,7 +78,7 @@ final class CustomerQueryBuilder extends AbstractDoctrineQueryBuilder
     {
         $searchQueryBuilder = $this->getCustomerQueryBuilder($searchCriteria)
             ->select('c.id_customer, c.firstname, c.lastname, c.email, c.active, c.newsletter, c.optin')
-            ->addSelect('c.date_add, gl.name as social_title, s.name as shop_name, c.company');
+            ->addSelect('c.date_add, gl.name as social_title, grl.name as default_group, s.name as shop_name, c.company');
 
         $this->appendTotalSpentQuery($searchQueryBuilder);
         $this->appendLastVisitQuery($searchQueryBuilder);
@@ -117,6 +117,12 @@ final class CustomerQueryBuilder extends AbstractDoctrineQueryBuilder
                 $this->dbPrefix . 'gender_lang',
                 'gl',
                 'c.id_gender = gl.id_gender AND gl.id_lang = :context_lang_id'
+            )
+            ->leftJoin(
+                'c',
+                $this->dbPrefix . 'group_lang',
+                'grl',
+                'c.id_default_group = grl.id_group AND grl.id_lang = :context_lang_id'
             )
             ->leftJoin(
                 'c',
@@ -182,6 +188,7 @@ final class CustomerQueryBuilder extends AbstractDoctrineQueryBuilder
             'firstname',
             'lastname',
             'email',
+            'default_group',
             'active',
             'newsletter',
             'optin',
@@ -208,11 +215,14 @@ final class CustomerQueryBuilder extends AbstractDoctrineQueryBuilder
                 continue;
             }
 
-            if ('date_add' === $filterName) {
-                $qb->andWhere('c.date_add >= :date_from AND c.date_add <= :date_to');
-                $qb->setParameter('date_from', sprintf('%s 0:0:0', $filterValue['from']));
-                $qb->setParameter('date_to', sprintf('%s 23:59:59', $filterValue['to']));
+            if ('default_group' === $filterName) {
+                $qb->andWhere('grl.id_group = :' . $filterName);
+                $qb->setParameter($filterName, $filterValue);
 
+                continue;
+            }
+
+            if ('date_add' === $filterName) {
                 if (isset($filterValue['from'])) {
                     $qb->andWhere('c.date_add >= :date_from');
                     $qb->setParameter('date_from', sprintf('%s 0:0:0', $filterValue['from']));
@@ -226,7 +236,7 @@ final class CustomerQueryBuilder extends AbstractDoctrineQueryBuilder
                 continue;
             }
 
-            $qb->andWhere('`' . $filterName . '` LIKE :' . $filterName);
+            $qb->andWhere('c.`' . $filterName . '` LIKE :' . $filterName);
             $qb->setParameter($filterName, '%' . $filterValue . '%');
         }
     }
@@ -254,6 +264,10 @@ final class CustomerQueryBuilder extends AbstractDoctrineQueryBuilder
                 break;
             case 'social_title':
                 $orderBy = 'gl.name';
+
+                break;
+            case 'default_group':
+                $orderBy = 'grl.name';
 
                 break;
             case 'connect':

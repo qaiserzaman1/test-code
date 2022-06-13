@@ -4,99 +4,90 @@ const {expect} = require('chai');
 
 // Import utils
 const helper = require('@utils/helpers');
-const loginCommon = require('@commonTests/loginBO');
+const basicHelper = require('@utils/basicHelper');
+const testContext = require('@utils/testContext');
+const files = require('@utils/files');
+
+// Import common tests
+const loginCommon = require('@commonTests/BO/loginBO');
+const {importFileTest} = require('@commonTests/BO/advancedParameters/importFile');
+const {bulkDeleteCustomersTest} = require('@commonTests/BO/customers/createDeleteCustomer');
 
 // Import pages
 const dashboardPage = require('@pages/BO/dashboard');
 const customersPage = require('@pages/BO/customers');
-const addCustomerPage = require('@pages/BO/customers/add');
 
 // Import data
-const CustomerFaker = require('@data/faker/customer');
-
-// Import test context
-const testContext = require('@utils/testContext');
+const {Data} = require('@data/import/customers');
 
 const baseContext = 'functional_BO_customers_customers_paginationAndSortCustomers';
-
 
 let browserContext;
 let page;
 let numberOfCustomers = 0;
 
+// Variable used to create customers csv file
+const fileName = 'customers.csv';
+
 /*
-Create 11 customers
-Paginate between pages
-Sort customers table
-Delete customers with bulk actions
+Pre-condition:
+- Import list of customers
+Scenario:
+- Paginate between pages
+- Sort customers table
+Post-condition:
+- Delete imported customers with bulk actions
  */
-describe('Pagination and sort customers', async () => {
+describe('BO - Customers - Customers : Pagination and sort customers table', async () => {
+  // Pre-condition: Import list of categories
+  importFileTest(fileName, Data.entity, `${baseContext}_preTest_1`);
+
   // before and after functions
   before(async function () {
     browserContext = await helper.createBrowserContext(this.browser);
     page = await helper.newTab(browserContext);
+    // Create csv file with all customers data
+    await files.createCSVFile('.', fileName, Data);
   });
 
   after(async () => {
     await helper.closeBrowserContext(browserContext);
+    // Delete created csv file
+    await files.deleteFile(fileName);
   });
 
-  it('should login in BO', async function () {
-    await loginCommon.loginBO(this, page);
-  });
+  // 1 : Go to customers page
+  describe('Go to \'Customers > Customers\' page', async () => {
+    it('should login in BO', async function () {
+      await loginCommon.loginBO(this, page);
+    });
 
-  it('should go to Customers page', async function () {
-    await testContext.addContextItem(this, 'testIdentifier', 'goToCustomersPage', baseContext);
+    it('should go to \'Customers > Customers\' page', async function () {
+      await testContext.addContextItem(this, 'testIdentifier', 'goToCustomersPage', baseContext);
 
-    await dashboardPage.goToSubMenu(
-      page,
-      dashboardPage.customersParentLink,
-      dashboardPage.customersLink,
-    );
+      await dashboardPage.goToSubMenu(
+        page,
+        dashboardPage.customersParentLink,
+        dashboardPage.customersLink,
+      );
 
-    await dashboardPage.closeSfToolBar(page);
+      await dashboardPage.closeSfToolBar(page);
 
-    const pageTitle = await customersPage.getPageTitle(page);
-    await expect(pageTitle).to.contains(customersPage.pageTitle);
-  });
+      const pageTitle = await customersPage.getPageTitle(page);
+      await expect(pageTitle).to.contains(customersPage.pageTitle);
+    });
 
-  it('should reset all filters and get number of customers in BO', async function () {
-    await testContext.addContextItem(this, 'testIdentifier', 'resetFirst', baseContext);
+    it('should reset all filters and get number of customers in BO', async function () {
+      await testContext.addContextItem(this, 'testIdentifier', 'resetFirst', baseContext);
 
-    numberOfCustomers = await customersPage.resetAndGetNumberOfLines(page);
-    await expect(numberOfCustomers).to.be.above(0);
-  });
-
-  // 1 : Create 11 new customers
-  const creationTests = new Array(10).fill(0, 0, 10);
-
-  creationTests.forEach((test, index) => {
-    describe(`Create customer n°${index + 1} in BO`, async () => {
-      const createCustomerData = new CustomerFaker({email: `test@prestashop.com${index}`});
-
-      it('should go to add new customer page', async function () {
-        await testContext.addContextItem(this, 'testIdentifier', `goToAddNewCustomerPage${index}`, baseContext);
-
-        await customersPage.goToAddNewCustomerPage(page);
-        const pageTitle = await addCustomerPage.getPageTitle(page);
-        await expect(pageTitle).to.contains(addCustomerPage.pageTitleCreate);
-      });
-
-      it('should create customer and check result', async function () {
-        await testContext.addContextItem(this, 'testIdentifier', `createCustomer${index}`, baseContext);
-
-        const textResult = await addCustomerPage.createEditCustomer(page, createCustomerData);
-        await expect(textResult).to.equal(customersPage.successfulCreationMessage);
-
-        const numberOfCustomersAfterCreation = await customersPage.getNumberOfElementInGrid(page);
-        await expect(numberOfCustomersAfterCreation).to.be.equal(numberOfCustomers + 1 + index);
-      });
+      numberOfCustomers = await customersPage.resetAndGetNumberOfLines(page);
+      await expect(numberOfCustomers).to.be.above(0);
     });
   });
 
   // 2 : Pagination
   describe('Pagination next and previous', async () => {
-    it('should change the item number to 10 per page', async function () {
+    it('should change the items number to 10 per page', async function () {
       await testContext.addContextItem(this, 'testIdentifier', 'changeItemNumberTo10', baseContext);
 
       const paginationNumber = await customersPage.selectPaginationLimit(page, '10');
@@ -117,7 +108,7 @@ describe('Pagination and sort customers', async () => {
       expect(paginationNumber).to.contains('(page 1 / 2)');
     });
 
-    it('should change the item number to 50 per page', async function () {
+    it('should change the items number to 50 per page', async function () {
       await testContext.addContextItem(this, 'testIdentifier', 'changeItemNumberTo50', baseContext);
 
       const paginationNumber = await customersPage.selectPaginationLimit(page, '50');
@@ -130,7 +121,7 @@ describe('Pagination and sort customers', async () => {
     const sortTests = [
       {
         args: {
-          testIdentifier: 'sortByIdDesc', sortBy: 'id_customer', sortDirection: 'desc', isFloat: true,
+          testIdentifier: 'sortByIdDesc', sortBy: 'id_customer', sortDirection: 'desc', isNumber: true,
         },
       },
       {args: {testIdentifier: 'sortBySocialTitleAsc', sortBy: 'social_title', sortDirection: 'asc'}},
@@ -141,15 +132,35 @@ describe('Pagination and sort customers', async () => {
       {args: {testIdentifier: 'sortLastNameDesc', sortBy: 'lastname', sortDirection: 'desc'}},
       {args: {testIdentifier: 'sortByEmailAsc', sortBy: 'email', sortDirection: 'asc'}},
       {args: {testIdentifier: 'sortByEmailDesc', sortBy: 'email', sortDirection: 'desc'}},
+      {args: {testIdentifier: 'sortBySalesAsc', sortBy: 'total_spent', sortDirection: 'asc'}},
+      {args: {testIdentifier: 'sortBySalesDesc', sortBy: 'total_spent', sortDirection: 'desc'}},
+      {args: {testIdentifier: 'sortByEnabledAsc', sortBy: 'active', sortDirection: 'asc'}},
+      {args: {testIdentifier: 'sortByEnabledDesc', sortBy: 'active', sortDirection: 'desc'}},
+      {args: {testIdentifier: 'sortByNewslettersAsc', sortBy: 'newsletter', sortDirection: 'asc'}},
+      {args: {testIdentifier: 'sortByNewslettersDesc', sortBy: 'newsletter', sortDirection: 'desc'}},
+      {args: {testIdentifier: 'sortByPartnerOffersAsc', sortBy: 'optin', sortDirection: 'asc'}},
+      {args: {testIdentifier: 'sortByPartnerOffersDesc', sortBy: 'optin', sortDirection: 'desc'}},
       {
         args: {
-          testIdentifier: 'sortByIdAsc', sortBy: 'id_customer', sortDirection: 'asc', isFloat: true,
+          testIdentifier: 'sortByRegistrationAsc', sortBy: 'date_add', sortDirection: 'asc', isDate: true,
+        },
+      },
+      {
+        args: {
+          testIdentifier: 'sortByRegistrationDesc', sortBy: 'date_add', sortDirection: 'desc', isDate: true,
+        },
+      },
+      {args: {testIdentifier: 'sortByLastVisitAsc', sortBy: 'connect', sortDirection: 'asc'}},
+      {args: {testIdentifier: 'sortByLastVisitDesc', sortBy: 'connect', sortDirection: 'desc'}},
+      {
+        args: {
+          testIdentifier: 'sortByIdAsc', sortBy: 'id_customer', sortDirection: 'asc', isNumber: true,
         },
       },
     ];
 
     sortTests.forEach((test) => {
-      it(`should sort by '${test.args.sortBy}' '${test.args.sortDirection}' And check result`, async function () {
+      it(`should sort by '${test.args.sortBy}' '${test.args.sortDirection}' and check result`, async function () {
         await testContext.addContextItem(this, 'testIdentifier', test.args.testIdentifier, baseContext);
 
         let nonSortedTable = await customersPage.getAllRowsColumnContent(page, test.args.sortBy);
@@ -158,12 +169,12 @@ describe('Pagination and sort customers', async () => {
 
         let sortedTable = await customersPage.getAllRowsColumnContent(page, test.args.sortBy);
 
-        if (test.args.isFloat) {
-          nonSortedTable = await nonSortedTable.map(text => parseFloat(text));
-          sortedTable = await sortedTable.map(text => parseFloat(text));
+        if (test.args.isNumber) {
+          nonSortedTable = await nonSortedTable.map(text => parseInt(text, 10));
+          sortedTable = await sortedTable.map(text => parseInt(text, 10));
         }
 
-        const expectedResult = await customersPage.sortArray(nonSortedTable, test.args.isFloat);
+        const expectedResult = await basicHelper.sortArray(nonSortedTable, test.args.isNumber, test.args.isDate);
 
         if (test.args.sortDirection === 'asc') {
           await expect(sortedTable).to.deep.equal(expectedResult);
@@ -174,34 +185,6 @@ describe('Pagination and sort customers', async () => {
     });
   });
 
-  // 4 : Delete customers created with bulk actions
-  describe('Delete customers with Bulk Actions', async () => {
-    it('should filter list by email', async function () {
-      await testContext.addContextItem(this, 'testIdentifier', 'filterToBulkDelete', baseContext);
-
-      await customersPage.filterCustomers(
-        page,
-        'input',
-        'email',
-        'test@prestashop.com',
-      );
-
-      const textResult = await customersPage.getTextColumnFromTableCustomers(page, 1, 'email');
-      await expect(textResult).to.contains('test@prestashop.com');
-    });
-
-    it('should delete customers with Bulk Actions and check Result', async function () {
-      await testContext.addContextItem(this, 'testIdentifier', 'bulkDeleteCustomers', baseContext);
-
-      const deleteTextResult = await customersPage.deleteCustomersBulkActions(page);
-      await expect(deleteTextResult).to.be.equal(customersPage.successfulMultiDeleteMessage);
-    });
-
-    it('should reset all filters', async function () {
-      await testContext.addContextItem(this, 'testIdentifier', 'resetAfterBulkDelete', baseContext);
-
-      const numberOfCustomersAfterReset = await customersPage.resetAndGetNumberOfLines(page);
-      await expect(numberOfCustomersAfterReset).to.be.equal(numberOfCustomers);
-    });
-  });
+  // Post-condition: Delete imported customers by bulk actions
+  bulkDeleteCustomersTest('email', 'test', `${baseContext}_postTest_1`);
 });

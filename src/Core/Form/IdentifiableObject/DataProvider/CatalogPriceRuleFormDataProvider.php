@@ -28,7 +28,7 @@ namespace PrestaShop\PrestaShop\Core\Form\IdentifiableObject\DataProvider;
 
 use PrestaShop\PrestaShop\Core\CommandBus\CommandBusInterface;
 use PrestaShop\PrestaShop\Core\Domain\CatalogPriceRule\Query\GetCatalogPriceRuleForEditing;
-use PrestaShop\PrestaShop\Core\Domain\CatalogPriceRule\QueryResult\editableCatalogPriceRule;
+use PrestaShop\PrestaShop\Core\Domain\CatalogPriceRule\QueryResult\EditableCatalogPriceRule;
 use PrestaShop\PrestaShop\Core\Domain\ValueObject\Reduction;
 
 /**
@@ -54,7 +54,7 @@ final class CatalogPriceRuleFormDataProvider implements FormDataProviderInterfac
      */
     public function getData($catalogPriceRuleId)
     {
-        /** @var editableCatalogPriceRule $editableCatalogPriceRule */
+        /** @var EditableCatalogPriceRule $editableCatalogPriceRule */
         $editableCatalogPriceRule = $this->queryBus->handle(new GetCatalogPriceRuleForEditing((int) $catalogPriceRuleId));
 
         $dateTimeFormat = 'Y-m-d H:i:s';
@@ -81,10 +81,10 @@ final class CatalogPriceRuleFormDataProvider implements FormDataProviderInterfac
                 'from' => $from ? $from->format($dateTimeFormat) : '',
                 'to' => $to ? $to->format($dateTimeFormat) : '',
             ],
-            'include_tax' => $editableCatalogPriceRule->isTaxIncluded(),
             'reduction' => [
                 'type' => $editableCatalogPriceRule->getReduction()->getType(),
                 'value' => (string) $editableCatalogPriceRule->getReduction()->getValue(),
+                'include_tax' => $editableCatalogPriceRule->isTaxIncluded(),
             ],
         ];
 
@@ -102,6 +102,7 @@ final class CatalogPriceRuleFormDataProvider implements FormDataProviderInterfac
             'reduction' => [
                 'type' => Reduction::TYPE_AMOUNT,
                 'value' => 0,
+                'include_tax' => true,
             ],
         ];
     }

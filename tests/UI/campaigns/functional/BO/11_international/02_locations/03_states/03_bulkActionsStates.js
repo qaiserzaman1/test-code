@@ -4,7 +4,7 @@ const helper = require('@utils/helpers');
 const {expect} = require('chai');
 
 // Common tests login BO
-const loginCommon = require('@commonTests/loginBO');
+const loginCommon = require('@commonTests/BO/loginBO');
 
 // Import pages
 const dashboardPage = require('@pages/BO/dashboard');
@@ -30,7 +30,7 @@ const statesToCreate = [
   new StateFaker({name: 'todelete2', isoCode: 'BV'}),
 ];
 
-describe('Create 2 states then enable, disable and delete by bulk actions', async () => {
+describe('BO - International - States : Bulk edit status and bulk delete', async () => {
   // before and after functions
   before(async function () {
     browserContext = await helper.createBrowserContext(this.browser);
@@ -45,7 +45,7 @@ describe('Create 2 states then enable, disable and delete by bulk actions', asyn
     await loginCommon.loginBO(this, page);
   });
 
-  it('should go to locations page', async function () {
+  it('should go to \'International > Locations\' page', async function () {
     await testContext.addContextItem(this, 'testIdentifier', 'goToLocationsPage', baseContext);
 
     await dashboardPage.goToSubMenu(
@@ -60,7 +60,7 @@ describe('Create 2 states then enable, disable and delete by bulk actions', asyn
     await expect(pageTitle).to.contains(zonesPage.pageTitle);
   });
 
-  it('should go to states page', async function () {
+  it('should go to \'States\' page', async function () {
     await testContext.addContextItem(this, 'testIdentifier', 'goToStatesPage', baseContext);
 
     await zonesPage.goToSubTabStates(page);

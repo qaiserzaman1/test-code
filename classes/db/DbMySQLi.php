@@ -48,8 +48,8 @@ class DbMySQLiCore extends Db
      */
     public function connect()
     {
-        $socket = false;
-        $port = false;
+        $socket = $port = false;
+        $server = '';
         if (Tools::strpos($this->server, ':') !== false) {
             list($server, $port) = explode(':', $this->server);
             if (is_numeric($port) === false) {
@@ -61,9 +61,10 @@ class DbMySQLiCore extends Db
         }
 
         if ($socket) {
-            $this->link = @new mysqli(null, $this->user, $this->password, $this->database, null, $socket);
+            /* @phpstan-ignore-next-line */
+            $this->link = @new mysqli(null, $this->user, $this->password, $this->database, 0, $socket);
         } elseif ($port) {
-            $this->link = @new mysqli($server, $this->user, $this->password, $this->database, $port);
+            $this->link = @new mysqli($server, $this->user, $this->password, $this->database, (int) $port);
         } else {
             $this->link = @new mysqli($this->server, $this->user, $this->password, $this->database);
         }
@@ -98,7 +99,7 @@ class DbMySQLiCore extends Db
     {
         if (strpos($host, ':') !== false) {
             list($host, $port) = explode(':', $host);
-            $link = @new mysqli($host, $user, $password, null, $port);
+            $link = @new mysqli($host, $user, $password, '', (int) $port);
         } else {
             $link = @new mysqli($host, $user, $password);
         }
@@ -327,7 +328,7 @@ class DbMySQLiCore extends Db
      * @param string $user Login for database connection
      * @param string $pwd Password for database connection
      * @param string $db Database name
-     * @param bool $newDbLink
+     * @param bool $new_db_link
      * @param string|bool $engine
      * @param int $timeout
      *
@@ -408,22 +409,66 @@ class DbMySQLiCore extends Db
             return false;
         }
 
-        if ($engine === null) {
-            $engine = 'MyISAM';
+        $enginesToTest = ['InnoDB', 'MyISAM'];
+        if ($engine !== null) {
+            $enginesToTest = [$engine];
         }
 
-        $result = $link->query('
-		CREATE TABLE `' . $prefix . 'test` (
-			`test` tinyint(1) unsigned NOT NULL
-		) ENGINE=' . $engine);
+        foreach ($enginesToTest as $engineToTest) {
+            $result = $link->query('
+            CREATE TABLE `' . $prefix . 'test` (
+                `test` tinyint(1) unsigned NOT NULL
+            ) ENGINE=' . $engineToTest);
 
-        if (!$result) {
-            return $link->error;
+            if ($result) {
+                $link->query('DROP TABLE `' . $prefix . 'test`');
+
+                return true;
+            }
         }
 
-        $link->query('DROP TABLE `' . $prefix . 'test`');
+        return $link->error;
+    }
 
-        return true;
+    /**
+     * Tries to connect to the database and select content (checking select privileges).
+     *
+     * @param string $server
+     * @param string $user
+     * @param string $pwd
+     * @param string $db
+     * @param string $prefix
+     * @param string|null $engine Table engine
+     *
+     * @return bool|string True, false or error
+     */
+    public static function checkSelectPrivilege($server, $user, $pwd, $db, $prefix, $engine = null)
+    {
+        $link = @new mysqli($server, $user, $pwd, $db);
+        if (mysqli_connect_error()) {
+            return false;
+        }
+
+        $enginesToTest = ['InnoDB', 'MyISAM'];
+        if ($engine !== null) {
+            $enginesToTest = [$engine];
+        }
+
+        foreach ($enginesToTest as $engineToTest) {
+            $link->query('CREATE TABLE `' . $prefix . 'test` (
+                `test` tinyint(1) unsigned NOT NULL
+            ) ENGINE=' . $engineToTest);
+
+            $result = $link->query('SELECT * FROM `' . $prefix . 'test`');
+
+            $link->query('DROP TABLE `' . $prefix . 'test`');
+
+            if ($result) {
+                return true;
+            }
+        }
+
+        return $link->error;
     }
 
     /**
@@ -441,25 +486,6 @@ class DbMySQLiCore extends Db
     {
         $link = @new mysqli($server, $user, $pwd);
         $ret = $link->query('SET NAMES utf8mb4');
-        $link->close();
-
-        return $ret;
-    }
-
-    /**
-     * Checks if auto increment value and offset is 1.
-     *
-     * @param string $server
-     * @param string $user
-     * @param string $pwd
-     *
-     * @return bool
-     */
-    public static function checkAutoIncrement($server, $user, $pwd)
-    {
-        $link = @new mysqli($server, $user, $pwd);
-        $ret = (bool) (($result = $link->query('SELECT @@auto_increment_increment as aii')) && ($row = $result->fetch_assoc()) && $row['aii'] == 1);
-        $ret &= (bool) (($result = $link->query('SELECT @@auto_increment_offset as aio')) && ($row = $result->fetch_assoc()) && $row['aio'] == 1);
         $link->close();
 
         return $ret;

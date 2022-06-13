@@ -27,9 +27,13 @@ use PrestaShop\PrestaShop\Adapter\Presenter\Order\OrderReturnPresenter;
 
 class OrderFollowControllerCore extends FrontController
 {
+    /** @var bool */
     public $auth = true;
+    /** @var string */
     public $php_self = 'order-follow';
+    /** @var string */
     public $authRedirection = 'order-follow';
+    /** @var bool */
     public $ssl = true;
 
     /**
@@ -102,16 +106,7 @@ class OrderFollowControllerCore extends FrontController
             Tools::redirect('index.php');
         }
 
-        $ordersReturn = $this->getTemplateVarOrdersReturns();
-        if (count($ordersReturn) <= 0) {
-            $this->warning[] = $this->trans(
-                'You have no merchandise return authorizations.',
-                [],
-                'Shop.Notifications.Error'
-            );
-        }
-
-        $this->context->smarty->assign('ordersReturn', $ordersReturn);
+        $this->context->smarty->assign('ordersReturn', $this->getTemplateVarOrdersReturns());
 
         parent::initContent();
         $this->setTemplate('customer/order-follow');
@@ -139,6 +134,10 @@ class OrderFollowControllerCore extends FrontController
         $breadcrumb = parent::getBreadcrumbLinks();
 
         $breadcrumb['links'][] = $this->addMyAccountToBreadcrumb();
+        $breadcrumb['links'][] = [
+            'title' => $this->trans('Merchandise returns', [], 'Shop.Theme.Global'),
+            'url' => $this->context->link->getPageLink('order-follow'),
+        ];
 
         return $breadcrumb;
     }

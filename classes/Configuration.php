@@ -37,7 +37,7 @@ class ConfigurationCore extends ObjectModel
     public $id_shop_group;
     public $id_shop;
 
-    /** @var string Value */
+    /** @var string|array<string> Value */
     public $value;
 
     /** @var string Object creation date */
@@ -63,10 +63,10 @@ class ConfigurationCore extends ObjectModel
         ],
     ];
 
-    /** @var array Configuration cache (kept for backward compat) */
+    /** @var array|null Configuration cache (kept for backward compat) */
     protected static $_cache = null;
 
-    /** @var array Configuration cache with optimised key order */
+    /** @var array|null Configuration cache with optimised key order */
     protected static $_new_cache_shop = null;
     protected static $_new_cache_group = null;
     protected static $_new_cache_global = null;
@@ -113,6 +113,18 @@ class ConfigurationCore extends ObjectModel
             $idShopGroup = Shop::getContextShopGroupID(true);
         }
 
+        return self::getIdByNameFromGivenContext($key, $idShopGroup, $idShop);
+    }
+
+    /**
+     * @param string $key
+     * @param int|null $idShopGroup
+     * @param int|null $idShop
+     *
+     * @return int Configuration key ID
+     */
+    public static function getIdByNameFromGivenContext(string $key, ?int $idShopGroup, ?int $idShop): int
+    {
         $sql = 'SELECT `' . bqSQL(self::$definition['primary']) . '`
                 FROM `' . _DB_PREFIX_ . bqSQL(self::$definition['table']) . '`
                 WHERE name = \'' . pSQL($key) . '\'
@@ -132,12 +144,20 @@ class ConfigurationCore extends ObjectModel
     }
 
     /**
+     * @deprecated 8.0.0 Use resetStaticCache method instead.
+     */
+    public static function clearConfigurationCacheForTesting()
+    {
+        self::resetStaticCache();
+    }
+
+    /**
      * WARNING: For testing only. Do NOT rely on this method, it may be removed at any time.
      *
      * @todo Delegate static calls from Configuration to an instance
      * of a class to be created.
      */
-    public static function clearConfigurationCacheForTesting()
+    public static function resetStaticCache()
     {
         self::$_cache = null;
         self::$_new_cache_shop = null;
@@ -196,7 +216,7 @@ class ConfigurationCore extends ObjectModel
      * @param string $key Key wanted
      * @param int $idLang Language ID
      *
-     * @return string Value
+     * @return string|false Value
      */
     public static function get($key, $idLang = null, $idShopGroup = null, $idShop = null, $default = false)
     {
@@ -263,7 +283,7 @@ class ConfigurationCore extends ObjectModel
      *
      * @return array Values in multiple languages
      */
-    public static function getInt($key, $idShopGroup = null, $idShop = null)
+    public static function getConfigInMultipleLangs($key, $idShopGroup = null, $idShop = null)
     {
         $resultsArray = [];
         foreach (Language::getIDs() as $idLang) {
@@ -329,10 +349,10 @@ class ConfigurationCore extends ObjectModel
     /**
      * Check if key exists in configuration.
      *
-     * @param string $key
-     * @param int $idLang
-     * @param int $idShopGroup
-     * @param int $idShop
+     * @param mixed $key
+     * @param mixed|null $idLang
+     * @param int|null $idShopGroup
+     * @param int|null $idShop
      *
      * @return bool
      */
@@ -440,17 +460,19 @@ class ConfigurationCore extends ObjectModel
         }
 
         if ($html) {
-            foreach ($values as &$value) {
-                $value = Tools::purifyHTML($value);
-            }
-            unset($value);
+            $values = array_map(function ($v) {
+                return Tools::purifyHTML($v);
+            }, $values);
         }
 
         $result = true;
         foreach ($values as $lang => $value) {
             $storedValue = Configuration::get($key, $lang, $idShopGroup, $idShop);
             // if there isn't a $stored_value, we must insert $value
-            if ((!is_numeric($value) && $value === $storedValue) || (is_numeric($value) && $value == $storedValue && Configuration::hasKey($key, $lang))) {
+            if (
+              ((!is_numeric($value) && $value === $storedValue) || (is_numeric($value) && $value == $storedValue))
+               && Configuration::hasKey($key, $lang, $idShopGroup, $idShop)
+            ) {
                 continue;
             }
 
@@ -539,7 +561,7 @@ class ConfigurationCore extends ObjectModel
 
         Configuration::set($key, $values, $idShopGroup, $idShop);
 
-        return $result;
+        return (bool) $result;
     }
 
     /**
@@ -577,29 +599,47 @@ class ConfigurationCore extends ObjectModel
     }
 
     /**
-     * Delete configuration key from current context.
+     * Delete configuration key from current context
      *
      * @param string $key
+     * @param int $idShopGroup
+     * @param int $idShop
      */
-    public static function deleteFromContext($key)
+    public static function deleteFromContext($key, int $idShopGroup = null, int $idShop = null)
     {
         if (Shop::getContext() == Shop::CONTEXT_ALL) {
             return;
         }
 
-        $idShop = null;
-        $idShopGroup = Shop::getContextShopGroupID(true);
-        if (Shop::getContext() == Shop::CONTEXT_SHOP) {
+        $idShopGroup = $idShopGroup ?? Shop::getContextShopGroupID(true);
+        if (!isset($idShop) && Shop::getContext() == Shop::CONTEXT_SHOP) {
             $idShop = Shop::getContextShopID(true);
         }
 
-        $id = Configuration::getIdByName($key, $idShopGroup, $idShop);
+        $configurationId = Configuration::getIdByName($key, $idShopGroup, $idShop);
+
+        self::deleteById($configurationId);
+    }
+
+    /**
+     * @param string $key
+     * @param int|null $idShopGroup
+     * @param int|null $idShop
+     */
+    public static function deleteFromGivenContext(string $key, ?int $idShopGroup, ?int $idShop): void
+    {
+        $configurationId = Configuration::getIdByNameFromGivenContext($key, $idShopGroup, $idShop);
+        self::deleteById($configurationId);
+    }
+
+    public static function deleteById(int $configurationId): void
+    {
         Db::getInstance()->execute('
         DELETE FROM `' . _DB_PREFIX_ . bqSQL(self::$definition['table']) . '`
-        WHERE `' . bqSQL(self::$definition['primary']) . '` = ' . (int) $id);
+        WHERE `' . bqSQL(self::$definition['primary']) . '` = ' . $configurationId);
         Db::getInstance()->execute('
         DELETE FROM `' . _DB_PREFIX_ . bqSQL(self::$definition['table']) . '_lang`
-        WHERE `' . bqSQL(self::$definition['primary']) . '` = ' . (int) $id);
+        WHERE `' . bqSQL(self::$definition['primary']) . '` = ' . $configurationId);
 
         self::$_cache = null;
         self::$_new_cache_shop = null;
@@ -612,7 +652,7 @@ class ConfigurationCore extends ObjectModel
      * Check if configuration var is defined in given context.
      *
      * @param string $key
-     * @param int $idLang
+     * @param int|null $idLang
      * @param int $context
      */
     public static function hasContext($key, $idLang, $context)

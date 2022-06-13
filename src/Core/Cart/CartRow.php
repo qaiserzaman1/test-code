@@ -27,6 +27,7 @@
 namespace PrestaShop\PrestaShop\Core\Cart;
 
 use Cart;
+use CartCore;
 use PrestaShop\PrestaShop\Adapter\AddressFactory;
 use PrestaShop\PrestaShop\Adapter\Cache\CacheAdapter;
 use PrestaShop\PrestaShop\Adapter\CoreException;
@@ -44,22 +45,22 @@ class CartRow
     /**
      * row round mode by item.
      */
-    const ROUND_MODE_ITEM = 'item';
+    public const ROUND_MODE_ITEM = 'item';
 
     /**
      * row round mode by line.
      */
-    const ROUND_MODE_LINE = 'line';
+    public const ROUND_MODE_LINE = 'line';
 
     /**
      * row round mode by all lines.
      */
-    const ROUND_MODE_TOTAL = 'total';
+    public const ROUND_MODE_TOTAL = 'total';
 
     /**
      * static cache key pattern.
      */
-    const PRODUCT_PRICE_CACHE_ID_PATTERN = 'Product::getPriceStatic_%d-%d';
+    public const PRODUCT_PRICE_CACHE_ID_PATTERN = 'Product::getPriceStatic_%d-%d';
 
     /**
      * @var PriceCalculator adapter to calculate price
@@ -267,11 +268,11 @@ class CartRow
     /**
      * run initial row calculation.
      *
-     * @param Cart $cart
+     * @param CartCore $cart
      *
      * @throws CoreException
      */
-    public function processCalculation(Cart $cart)
+    public function processCalculation(CartCore $cart)
     {
         $rowData = $this->getRowData();
         $quantity = (int) $rowData['cart_quantity'];
@@ -297,7 +298,7 @@ class CartRow
         $this->isProcessed = true;
     }
 
-    protected function getProductPrice(Cart $cart, $rowData)
+    protected function getProductPrice(CartCore $cart, $rowData)
     {
         $productId = (int) $rowData['id_product'];
         $quantity = (int) $rowData['cart_quantity'];
@@ -333,9 +334,9 @@ class CartRow
 				WHERE `id_product` = ' . (int) $productId . '
 				AND `id_cart` = ' . (int) $cart->id;
                 $cartQuantity = (int) $this->databaseAdapter->getValue($sql, _PS_USE_SQL_SLAVE_);
-                $this->cacheAdapter->store($cacheId, $cartQuantity);
+                $this->cacheAdapter->store($cacheId, (string) $cartQuantity);
             } else {
-                $cartQuantity = $this->cacheAdapter->retrieve($cacheId);
+                $cartQuantity = (int) $this->cacheAdapter->retrieve($cacheId);
             }
         }
 

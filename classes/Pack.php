@@ -23,35 +23,39 @@
  * @copyright Since 2007 PrestaShop SA and Contributors
  * @license   https://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
  */
+
+use PrestaShop\PrestaShop\Core\Domain\Product\Pack\ValueObject\PackStockType;
+use PrestaShop\PrestaShop\Core\Domain\Product\ValueObject\ProductType;
+
 class PackCore extends Product
 {
     /**
      * Only decrement pack quantity.
      *
-     * @var string
+     * @var int
      */
-    const STOCK_TYPE_PACK_ONLY = 0;
+    const STOCK_TYPE_PACK_ONLY = PackStockType::STOCK_TYPE_PACK_ONLY;
 
     /**
      * Only decrement pack products quantities.
      *
-     * @var string
+     * @var int
      */
-    const STOCK_TYPE_PRODUCTS_ONLY = 1;
+    const STOCK_TYPE_PRODUCTS_ONLY = PackStockType::STOCK_TYPE_PRODUCTS_ONLY;
 
     /**
      * Decrement pack quantity and pack products quantities.
      *
-     * @var string
+     * @var int
      */
-    const STOCK_TYPE_PACK_BOTH = 2;
+    const STOCK_TYPE_PACK_BOTH = PackStockType::STOCK_TYPE_BOTH;
 
     /**
      * Use pack quantity default setting.
      *
-     * @var string
+     * @var int
      */
-    const STOCK_TYPE_DEFAULT = 3;
+    const STOCK_TYPE_DEFAULT = PackStockType::STOCK_TYPE_DEFAULT;
 
     protected static $cachePackItems = [];
     protected static $cacheIsPack = [];
@@ -67,7 +71,7 @@ class PackCore extends Product
     /**
      * Is product a pack?
      *
-     * @param $id_product
+     * @param int $id_product
      *
      * @return bool
      */
@@ -83,7 +87,8 @@ class PackCore extends Product
 
         if (!array_key_exists($id_product, self::$cacheIsPack)) {
             $result = Db::getInstance()->getValue('SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'pack` WHERE id_product_pack = ' . (int) $id_product);
-            self::$cacheIsPack[$id_product] = ($result > 0);
+            $productType = Db::getInstance()->getValue('SELECT product_type FROM `' . _DB_PREFIX_ . 'product` WHERE id_product = ' . (int) $id_product);
+            self::$cacheIsPack[$id_product] = ($result > 0) || $productType === ProductType::TYPE_PACK;
         }
 
         return self::$cacheIsPack[$id_product];
@@ -94,8 +99,8 @@ class PackCore extends Product
      * If $id_product_attribute specified, then will restrict search on the given combination,
      * else this method will match a product if at least one of all its combination is in a pack.
      *
-     * @param $id_product
-     * @param $id_product_attribute Optional combination of the product
+     * @param int $id_product
+     * @param int|bool $id_product_attribute Optional combination of the product
      *
      * @return bool
      */
@@ -165,7 +170,7 @@ class PackCore extends Product
             $p->pack_quantity = $row['quantity'];
             $p->id_pack_product_attribute = (isset($row['id_product_attribute_item']) && $row['id_product_attribute_item'] ? $row['id_product_attribute_item'] : 0);
             if (isset($row['id_product_attribute_item']) && $row['id_product_attribute_item']) {
-                $sql = 'SELECT agl.`name` AS group_name, al.`name` AS attribute_name
+                $sql = 'SELECT agl.`name` AS group_name, al.`name` AS attribute_name, pa.`reference` AS attribute_reference
 					FROM `' . _DB_PREFIX_ . 'product_attribute` pa
 					' . Shop::addSqlAssociation('product_attribute', 'pa') . '
 					LEFT JOIN `' . _DB_PREFIX_ . 'product_attribute_combination` pac ON pac.`id_product_attribute` = pa.`id_product_attribute`
@@ -180,6 +185,7 @@ class PackCore extends Product
                 $combinations = Db::getInstance()->executeS($sql);
                 foreach ($combinations as $k => $combination) {
                     $p->name .= ' ' . $combination['group_name'] . '-' . $combination['attribute_name'];
+                    $p->reference = $combination['attribute_reference'];
                 }
             }
             $array_result[] = $p;
@@ -227,11 +233,11 @@ class PackCore extends Product
     /**
      * Returns the available quantity of a given pack (this method already have decreased products in cart).
      *
-     * @param int $id_product Product id
-     * @param int $id_product_attribute Product attribute id (optional)
+     * @param int $idProduct Product id
+     * @param int|null $idProductAttribute Product attribute id (optional)
      * @param bool|null $cacheIsPack
-     * @param Cart $cart
-     * @param int $idCustomization Product customization id (optional)
+     * @param CartCore|null $cart
+     * @param int|null $idCustomization Product customization id (optional)
      *
      * @return int
      *
@@ -241,12 +247,11 @@ class PackCore extends Product
         $idProduct,
         $idProductAttribute = null,
         $cacheIsPack = null,
-        Cart $cart = null,
+        CartCore $cart = null,
         $idCustomization = null
     ) {
         $idProduct = (int) $idProduct;
         $idProductAttribute = (int) $idProductAttribute;
-        $cacheIsPack = (bool) $cacheIsPack;
 
         if (!self::isPack($idProduct)) {
             throw new PrestaShopException("Product with id $idProduct is not a pack");
@@ -289,7 +294,7 @@ class PackCore extends Product
             $items = array_values(Pack::getItems($idProduct, Configuration::get('PS_LANG_DEFAULT')));
 
             foreach ($items as $index => $item) {
-                $itemQuantity = Product::getQuantity($item->id, null, null, $cart, $idCustomization);
+                $itemQuantity = Product::getQuantity($item->id, $item->id_pack_product_attribute ?: null, null, $cart, $idCustomization);
                 $nbPackAvailableForItem = (int) floor($itemQuantity / $item->pack_quantity);
 
                 // Initialize packQuantity with the first product quantity
@@ -344,11 +349,12 @@ class PackCore extends Product
 
         $result = Db::getInstance(_PS_USE_SQL_SLAVE_)->executeS($sql);
 
+        /** @var array{id_product: int, id_product_attribute_item: int|null, name: string} $line */
         foreach ($result as &$line) {
             if (Combination::isFeatureActive() && isset($line['id_product_attribute_item']) && $line['id_product_attribute_item']) {
                 $line['cache_default_attribute'] = $line['id_product_attribute'] = $line['id_product_attribute_item'];
 
-                $sql = 'SELECT agl.`name` AS group_name, al.`name` AS attribute_name,  pai.`id_image` AS id_product_attribute_image
+                $sql = 'SELECT pa.`reference` AS attribute_reference, agl.`name` AS group_name, al.`name` AS attribute_name,  pai.`id_image` AS id_product_attribute_image
 				FROM `' . _DB_PREFIX_ . 'product_attribute` pa
 				' . Shop::addSqlAssociation('product_attribute', 'pa') . '
 				LEFT JOIN `' . _DB_PREFIX_ . 'product_attribute_combination` pac ON pac.`id_product_attribute` = ' . $line['id_product_attribute_item'] . '
@@ -366,6 +372,9 @@ class PackCore extends Product
                 if (isset($attr_name[0]['id_product_attribute_image']) && $attr_name[0]['id_product_attribute_image']) {
                     $line['id_image'] = $attr_name[0]['id_product_attribute_image'];
                 }
+
+                $line['reference'] = $attr_name[0]['attribute_reference'] ?? '';
+
                 $line['name'] .= "\n";
                 foreach ($attr_name as $value) {
                     $line['name'] .= ' ' . $value['group_name'] . '-' . $value['attribute_name'];
@@ -461,7 +470,7 @@ class PackCore extends Product
     {
         $id_attribute_item = (int) $id_attribute_item ? (int) $id_attribute_item : Product::getDefaultAttribute((int) $id_item);
 
-        return Db::getInstance()->update('product', ['cache_is_pack' => 1], 'id_product = ' . (int) $id_product) &&
+        return Db::getInstance()->update('product', ['cache_is_pack' => 1, 'product_type' => ProductType::TYPE_PACK], 'id_product = ' . (int) $id_product) &&
             Db::getInstance()->insert('pack', [
                 'id_product_pack' => (int) $id_product,
                 'id_product_item' => (int) $id_item,
@@ -497,8 +506,8 @@ class PackCore extends Product
      *
      * @since 1.5.0
      *
-     * @param $table
-     * @param $has_active_column
+     * @param string|null $table Name of table linked to entity
+     * @param bool $has_active_column True if the table has an active column
      *
      * @return bool
      */
@@ -560,7 +569,7 @@ class PackCore extends Product
     }
 
     /**
-     * Returns Packs that conatins the given product in the right declinaison.
+     * Returns Packs that contains the given product in the right declinaison.
      *
      * @param int $id_item Product item id that could be contained in a|many pack(s)
      * @param int $id_attribute_item The declinaison of the product

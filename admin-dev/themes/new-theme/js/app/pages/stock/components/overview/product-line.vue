@@ -24,122 +24,183 @@
  *-->
 <template>
   <tr :class="{'low-stock':lowStock}">
-    <td>
-      <div class="d-flex align-items-center">
+    <td data-role="product-id">
+      <div class="d-flex align-items-left">
         <PSCheckbox
           :id="id"
           :ref="id"
           :model="product"
           @checked="productChecked"
         />
+        <p
+          class="d-flex align-items-center ml-2"
+        >
+          {{ product.product_id }}
+        </p>
+      </div>
+    </td>
+    <td data-role="product-name">
+      <div class="d-flex align-items-center">
         <PSMedia
           class="d-flex align-items-center ml-2"
           :thumbnail="thumbnail"
         >
           <p>
             {{ product.product_name }}
-            <small v-if="hasCombination"><br />
-              {{ combinationName }}
+            <small v-if="hasCombination"><br>
+              {{ product.combination_name }}
             </small>
           </p>
         </PSMedia>
       </div>
     </td>
-    <td>
+    <td data-role="product-reference">
       {{ reference }}
     </td>
-    <td>
+    <td data-role="product-supplier-name">
       {{ product.supplier_name }}
     </td>
-    <td v-if="product.active" class="text-sm-center">
+    <td
+      v-if="product.active"
+      class="text-sm-center"
+      data-role="product-active"
+    >
       <i class="material-icons enable">check</i>
     </td>
-    <td v-else class="text-sm-center">
+    <td
+      v-else
+      class="text-sm-center"
+    >
       <i class="material-icons disable">close</i>
     </td>
-    <td class="text-sm-center" :class="{'stock-warning':lowStock}">
+    <td
+      class="text-sm-center"
+      :class="{'stock-warning':lowStock}"
+      data-role="physical-quantity"
+    >
       {{ physical }}
-      <span v-if="updatedQty" class="qty-update" :class="{'stock-warning':lowStock}">
-        <i class="material-icons">trending_flat</i>
-        {{physicalQtyUpdated}}
+      <span
+        v-if="updatedQty"
+        class="qty-update"
+        :class="{'stock-warning':lowStock}"
+      >
+        <i class="material-icons rtl-flip">trending_flat</i>
+        {{ physicalQtyUpdated }}
       </span>
     </td>
-    <td class="text-sm-center" :class="{'stock-warning':lowStock}">
+    <td
+      class="text-sm-center"
+      :class="{'stock-warning':lowStock}"
+      data-role="reserved-quantity"
+    >
       {{ product.product_reserved_quantity }}
     </td>
-    <td class="text-sm-center" :class="{'stock-warning':lowStock}">
+    <td
+      class="text-sm-center"
+      :class="{'stock-warning':lowStock}"
+      data-role="available-quantity"
+    >
       {{ product.product_available_quantity }}
-      <span v-if="updatedQty" class="qty-update" :class="{'stock-warning':lowStock}">
-        <i class="material-icons">trending_flat</i>
-        {{availableQtyUpdated}}
+      <span
+        v-if="updatedQty"
+        class="qty-update"
+        :class="{'stock-warning':lowStock}"
+      >
+        <i class="material-icons rtl-flip">trending_flat</i>
+        {{ availableQtyUpdated }}
       </span>
-      <span v-if="lowStock" class="stock-warning ico ml-2" data-toggle="pstooltip" data-placement="top" data-html="true" :title="lowStockLevel">!</span>
+      <span
+        v-if="lowStock"
+        class="stock-warning ico ml-2"
+        data-toggle="pstooltip"
+        data-placement="top"
+        data-html="true"
+        :title="lowStockLevel"
+      >!</span>
     </td>
-    <td class="qty-spinner text-right">
-      <Spinner :product="product" @updateProductQty="updateProductQty" />
+    <td
+      class="qty-spinner text-right"
+      data-role="update-quantity"
+    >
+      <Spinner
+        :product="product"
+        @updateProductQty="updateProductQty"
+      />
     </td>
   </tr>
 </template>
 
-<script>
-  import PSCheckbox from '@app/widgets/ps-checkbox';
-  import PSMedia from '@app/widgets/ps-media';
+<script lang="ts">
+  import Vue from 'vue';
+  import PSCheckbox from '@app/widgets/ps-checkbox.vue';
+  import PSMedia from '@app/widgets/ps-media.vue';
+  import {StockProduct} from '@app/pages/stock/components/overview/products-table.vue';
   import ProductDesc from '@app/pages/stock/mixins/product-desc';
-  import { EventBus } from '@app/utils/event-bus';
-  import Spinner from '@app/pages/stock/components/overview/spinner';
-  import _ from 'lodash';
+  import {EventBus} from '@app/utils/event-bus';
+  import Spinner from '@app/pages/stock/components/overview/spinner.vue';
 
-  export default {
-    props: ['product'],
+  export interface StockProductToUpdate {
+    product: StockProduct;
+    delta: number;
+  }
+
+  export default Vue.extend({
+    props: {
+      product: {
+        type: Object,
+        required: true,
+      },
+    },
     mixins: [ProductDesc],
     computed: {
-      reference() {
+      reference(): string {
         if (this.product.combination_reference !== 'N/A') {
           return this.product.combination_reference;
         }
         return this.product.product_reference;
       },
-      updatedQty() {
+      updatedQty(): boolean {
         return !!this.product.qty;
       },
-      physicalQtyUpdated() {
+      physicalQtyUpdated(): number {
         return Number(this.physical) + Number(this.product.qty);
       },
-      availableQtyUpdated() {
+      availableQtyUpdated(): number {
         return Number(this.product.product_available_quantity) + Number(this.product.qty);
       },
-      physical() {
+      physical(): number {
         const productAvailableQty = Number(this.product.product_available_quantity);
         const productReservedQty = Number(this.product.product_reserved_quantity);
+
         return productAvailableQty + productReservedQty;
       },
-      lowStock() {
+      lowStock(): boolean {
         return this.product.product_low_stock_alert;
       },
-      lowStockLevel() {
+      lowStockLevel(): string {
         return `<div class="text-sm-left">
-                  <p>${this.trans('product_low_stock')}</p>
-                  <p><strong>${this.trans('product_low_stock_level')} ${this.product.product_low_stock_threshold}</strong></p>
-                </div>`;
+          <p>${this.trans('product_low_stock')}</p>
+          <p><strong>${this.trans('product_low_stock_level')} ${this.product.product_low_stock_threshold}</strong></p>
+        </div>`;
       },
-      lowStockAlert() {
+      lowStockAlert(): string {
         return `<div class="text-sm-left">
-                  <p><strong>${this.trans('product_low_stock_alert')} ${this.product.product_low_stock_alert}</strong></p>
-                </div>`;
+          <p><strong>${this.trans('product_low_stock_alert')} ${this.product.product_low_stock_alert}</strong></p>
+        </div>`;
       },
-      id() {
+      id(): string {
         return `product-${this.product.product_id}${this.product.combination_id}`;
       },
     },
     methods: {
-      productChecked(checkbox) {
+      productChecked(checkbox: any): void {
         if (checkbox.checked) {
           this.$store.dispatch('addSelectedProduct', checkbox.item);
         } else {
           this.$store.dispatch('removeSelectedProduct', checkbox.item);
         }
       },
-      updateProductQty(productToUpdate) {
+      updateProductQty(productToUpdate: StockProductToUpdate): void {
         const updatedProduct = {
           product_id: productToUpdate.product.product_id,
           combination_id: productToUpdate.product.combination_id,
@@ -154,10 +215,11 @@
       },
     },
     mounted() {
-      EventBus.$on('toggleProductsCheck', (checked) => {
+      EventBus.$on('toggleProductsCheck', (checked: boolean) => {
         const ref = this.id;
+
         if (this.$refs[ref]) {
-          this.$refs[ref].checked = checked;
+          (<VCheckboxDatas> this.$refs[ref]).checked = checked;
         }
       });
       $('[data-toggle="pstooltip"]').pstooltip();
@@ -170,5 +232,5 @@
       PSMedia,
       PSCheckbox,
     },
-  };
+  });
 </script>

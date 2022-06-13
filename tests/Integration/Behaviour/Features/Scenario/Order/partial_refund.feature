@@ -1,5 +1,5 @@
 # ./vendor/bin/behat -c tests/Integration/Behaviour/behat.yml -s order --tags order-partial-refund
-@reset-database-before-feature
+@restore-all-tables-before-feature
 @clear-cache-before-feature
 Feature: Refund Order from Back Office (BO)
   In order to refund orders for FO customers
@@ -825,9 +825,9 @@ Feature: Refund Order from Back Office (BO)
       | message             | test             |
       | payment module name | dummy_payment    |
       | status              | Payment accepted |
-    And product "Mug The best is yet to come" in order "bo_order_refund" has following details:
+    And product "product_mug_best_to_come" named "Mug The best is yet to come" in order bo_order_refund has following details:
       | product_quantity            | 2 |
-    And product "Mug Today is a good day" in order "bo_order_refund" has following details:
+    And product "product_mug_good_day" named "Mug Today is a good day" in order "bo_order_refund" has following details:
       | product_quantity            | 1 |
     And there are 2 less "Mug The best is yet to come" in stock
     And there is 1 less "Mug Today is a good day" in stock
@@ -839,7 +839,8 @@ Feature: Refund Order from Back Office (BO)
       | name         | US-FL Rate (10%) |
       | country      | US               |
       | state        | FL               |
-    And I set tax rule group "state-tax-group" to product "Mug The best is yet to come"
+    And I update product product_mug_best_to_come prices with following information:
+      | tax rules group | US-FL Rate (10%) |
     When I issue a partial refund on "bo_order_refund" without restock with credit slip without voucher on following products:
       | product_name                | quantity                 | amount |
       | Mug The best is yet to come | 1                        | 11.9   |

@@ -348,9 +348,9 @@ class OrderAmountUpdater
             }
         }
 
-        if (!$cart->isVirtualCart() && isset($order->id_carrier)) {
+        if (!$cart->isVirtualCart() && !empty($order->id_carrier)) {
             $carrier = new Carrier((int) $order->id_carrier, (int) $cart->id_lang);
-            if (null !== $carrier && Validate::isLoadedObject($carrier)) {
+            if (Validate::isLoadedObject($carrier)) {
                 $taxAddressId = (int) $order->{$this->getOrderConfiguration('PS_TAX_ADDRESS_TYPE', $order)};
                 $order->carrier_tax_rate = $carrier->getTaxesRate(new Address($taxAddressId));
             }
@@ -523,7 +523,7 @@ class OrderAmountUpdater
 
             // Shipping are computed on first invoice only
             $carrierId = $order->id_carrier;
-            $totalMethod = ($firstInvoice === null || $firstInvoice->id == $invoice->id) ? Cart::BOTH : Cart::BOTH_WITHOUT_SHIPPING;
+            $totalMethod = ($firstInvoice === false || $firstInvoice->id == $invoice->id) ? Cart::BOTH : Cart::BOTH_WITHOUT_SHIPPING;
             $invoice->total_paid_tax_excl = Tools::ps_round(
                 (float) $cart->getOrderTotal(false, $totalMethod, $currentInvoiceProducts, $carrierId, false, $this->keepOrderPrices),
                 $computingPrecision
@@ -565,15 +565,13 @@ class OrderAmountUpdater
                 if ($freeShipping) {
                     $invoice->total_discount_tax_excl = $invoice->total_discount_tax_excl - $invoice->total_shipping_tax_excl + $totalShippingTaxExcluded;
                     $invoice->total_discount_tax_incl = $invoice->total_discount_tax_incl - $invoice->total_shipping_tax_incl + $totalShippingTaxIncluded;
+                } else {
+                    $invoice->total_paid_tax_incl -= ($invoice->total_shipping_tax_incl - $totalShippingTaxIncluded);
+                    $invoice->total_paid_tax_excl -= ($invoice->total_shipping_tax_excl - $totalShippingTaxExcluded);
                 }
 
                 $invoice->total_shipping_tax_incl = $totalShippingTaxIncluded;
                 $invoice->total_shipping_tax_excl = $totalShippingTaxExcluded;
-
-                if (!$freeShipping) {
-                    $invoice->total_paid_tax_incl -= ($invoice->total_shipping_tax_incl - $totalShippingTaxIncluded);
-                    $invoice->total_paid_tax_excl -= ($invoice->total_shipping_tax_excl - $totalShippingTaxExcluded);
-                }
             }
 
             if (!$invoice->update()) {
@@ -631,10 +629,7 @@ class OrderAmountUpdater
     {
         $constraintKey = $order->id_shop . '-' . $order->id_shop_group;
         if (!isset($this->orderConstraints[$constraintKey])) {
-            $this->orderConstraints[$constraintKey] = new ShopConstraint(
-                (int) $order->id_shop,
-                (int) $order->id_shop_group
-            );
+            $this->orderConstraints[$constraintKey] = ShopConstraint::shop((int) $order->id_shop);
         }
 
         return $this->orderConstraints[$constraintKey];

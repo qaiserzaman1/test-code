@@ -40,6 +40,11 @@ class CustomerAddressFormCore extends AbstractForm
 
     protected $template = 'customer/_partials/address-form.tpl';
 
+    /**
+     * @var CustomerAddressFormatter
+     */
+    protected $formatter;
+
     private $address;
 
     private $persister;
@@ -68,7 +73,7 @@ class CustomerAddressFormCore extends AbstractForm
         $this->address = new Address($id_address, $this->language->id);
 
         if ($this->address->id === null) {
-            return Tools::redirect('index.php?controller=404');
+            return Tools::redirect('pagenotfound');
         }
 
         if (!$context->customer->isLogged() && !$context->customer->isGuest()) {
@@ -76,7 +81,7 @@ class CustomerAddressFormCore extends AbstractForm
         }
 
         if ($this->address->id_customer != $context->customer->id) {
-            return Tools::redirect('index.php?controller=404');
+            return Tools::redirect('pagenotfound');
         }
 
         $params = get_object_vars($this->address);
@@ -90,7 +95,14 @@ class CustomerAddressFormCore extends AbstractForm
         // This form is very tricky: fields may change depending on which
         // country is being submitted!
         // So we first update the format if a new id_country was set.
-        if (isset($params['id_country'])
+        // If detect country from browser language is selected, default country will be overridden
+        if (Tools::isCountryFromBrowserAvailable()) {
+            $languageAvailable = Tools::getCountryIsoCodeFromHeader();
+            $this->formatter->setCountry(new Country(
+                (int) Country::getByIso($languageAvailable, true),
+                Language::getIdByIso($languageAvailable)
+            ));
+        } elseif (isset($params['id_country'])
             && $params['id_country'] != $this->formatter->getCountry()->id
         ) {
             $this->formatter->setCountry(new Country(
@@ -106,17 +118,16 @@ class CustomerAddressFormCore extends AbstractForm
     {
         $is_valid = true;
 
-        if (($postcode = $this->getField('postcode'))) {
-            if ($postcode->isRequired()) {
-                $country = $this->formatter->getCountry();
-                if (!$country->checkZipCode($postcode->getValue())) {
-                    $postcode->addError($this->translator->trans(
-                        'Invalid postcode - should look like "%zipcode%"',
-                        ['%zipcode%' => $country->zip_code_format],
-                        'Shop.Forms.Errors'
-                    ));
-                    $is_valid = false;
-                }
+        $postcode = $this->getField('postcode');
+        if ($postcode && $postcode->isRequired()) {
+            $country = $this->formatter->getCountry();
+            if (!$country->checkZipCode($postcode->getValue())) {
+                $postcode->addError($this->translator->trans(
+                    'Invalid postcode - should look like "%zipcode%"',
+                    ['%zipcode%' => $country->zip_code_format],
+                    'Shop.Forms.Errors'
+               ));
+                $is_valid = false;
             }
         }
 

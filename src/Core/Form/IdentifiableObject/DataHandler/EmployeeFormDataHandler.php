@@ -32,9 +32,10 @@ use PrestaShop\PrestaShop\Core\Domain\Employee\Command\AddEmployeeCommand;
 use PrestaShop\PrestaShop\Core\Domain\Employee\Command\EditEmployeeCommand;
 use PrestaShop\PrestaShop\Core\Domain\Employee\Exception\EmployeeConstraintException;
 use PrestaShop\PrestaShop\Core\Domain\Employee\ValueObject\EmployeeId;
-use PrestaShop\PrestaShop\Core\Domain\Employee\ValueObject\Password;
 use PrestaShop\PrestaShop\Core\Employee\Access\EmployeeFormAccessCheckerInterface;
 use PrestaShop\PrestaShop\Core\Employee\EmployeeDataProviderInterface;
+use PrestaShop\PrestaShop\Core\Image\Uploader\ImageUploaderInterface;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 /**
  * Handles submitted employee form's data.
@@ -72,12 +73,36 @@ final class EmployeeFormDataHandler implements FormDataHandlerInterface
     private $hashing;
 
     /**
+     * @var ImageUploaderInterface
+     */
+    private $imageUploader;
+
+    /**
+     * @var int
+     */
+    private $minScore;
+
+    /**
+     * @var int
+     */
+    private $minLength;
+
+    /**
+     * @var int
+     */
+    private $maxLength;
+
+    /**
      * @param CommandBusInterface $bus
      * @param array $defaultShopAssociation
      * @param int $superAdminProfileId
      * @param EmployeeFormAccessCheckerInterface $employeeFormAccessChecker
      * @param EmployeeDataProviderInterface $employeeDataProvider
      * @param Hashing $hashing
+     * @param ImageUploaderInterface $imageUploader
+     * @param int $minLength
+     * @param int $maxLength
+     * @param int $minScore
      */
     public function __construct(
         CommandBusInterface $bus,
@@ -85,7 +110,11 @@ final class EmployeeFormDataHandler implements FormDataHandlerInterface
         $superAdminProfileId,
         EmployeeFormAccessCheckerInterface $employeeFormAccessChecker,
         EmployeeDataProviderInterface $employeeDataProvider,
-        Hashing $hashing
+        Hashing $hashing,
+        ImageUploaderInterface $imageUploader,
+        int $minLength,
+        int $maxLength,
+        int $minScore
     ) {
         $this->bus = $bus;
         $this->defaultShopAssociation = $defaultShopAssociation;
@@ -93,6 +122,10 @@ final class EmployeeFormDataHandler implements FormDataHandlerInterface
         $this->employeeFormAccessChecker = $employeeFormAccessChecker;
         $this->employeeDataProvider = $employeeDataProvider;
         $this->hashing = $hashing;
+        $this->imageUploader = $imageUploader;
+        $this->minLength = $minLength;
+        $this->maxLength = $maxLength;
+        $this->minScore = $minScore;
     }
 
     /**
@@ -115,8 +148,18 @@ final class EmployeeFormDataHandler implements FormDataHandlerInterface
             $data['language'],
             $data['active'],
             $data['profile'],
-            isset($data['shop_association']) ? $data['shop_association'] : $this->defaultShopAssociation
+            isset($data['shop_association']) ? $data['shop_association'] : $this->defaultShopAssociation,
+            $data['has_enabled_gravatar'] ?? false,
+            $this->minLength,
+            $this->maxLength,
+            $this->minScore
         ));
+
+        /** @var UploadedFile|null $uploadedAvatar */
+        $uploadedAvatar = $data['avatarUrl'] ?? null;
+        if (!empty($uploadedAvatar) && $uploadedAvatar instanceof UploadedFile) {
+            $this->imageUploader->upload($employeeId->getValue(), $uploadedAvatar);
+        }
 
         return $employeeId->getValue();
     }
@@ -126,6 +169,12 @@ final class EmployeeFormDataHandler implements FormDataHandlerInterface
      */
     public function update($id, array $data)
     {
+        /** @var UploadedFile $uploadedAvatar */
+        $uploadedAvatar = $data['avatarUrl'];
+        if ($uploadedAvatar instanceof UploadedFile) {
+            $this->imageUploader->upload($id, $uploadedAvatar);
+        }
+
         $command = (new EditEmployeeCommand($id))
             ->setFirstName($data['firstname'])
             ->setLastName($data['lastname'])
@@ -134,6 +183,7 @@ final class EmployeeFormDataHandler implements FormDataHandlerInterface
             ->setLanguageId((int) $data['language'])
             ->setActive((bool) $data['active'])
             ->setProfileId((int) $data['profile'])
+            ->setHasEnabledGravatar((bool) $data['has_enabled_gravatar'])
         ;
 
         if ($this->employeeFormAccessChecker->isRestrictedAccess((int) $id)) {
@@ -143,10 +193,10 @@ final class EmployeeFormDataHandler implements FormDataHandlerInterface
                     $id
                 );
 
-                $command->setPlainPassword($data['change_password']['new_password']);
+                $command->setPlainPassword($data['change_password']['new_password'], $this->minLength, $this->maxLength, $this->minScore);
             }
         } elseif (isset($data['password'])) {
-            $command->setPlainPassword($data['password']);
+            $command->setPlainPassword($data['password'], $this->minLength, $this->maxLength, $this->minScore);
         }
 
         if (isset($data['shop_association'])) {

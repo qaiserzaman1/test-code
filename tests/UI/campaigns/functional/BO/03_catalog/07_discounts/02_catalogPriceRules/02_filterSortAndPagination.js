@@ -1,10 +1,12 @@
 require('module-alias/register');
 
-// Helpers to open and close browser
+// Import utils
 const helper = require('@utils/helpers');
+const basicHelper = require('@utils/basicHelper');
+const {getDateFormat} = require('@utils/date');
 
 // Common tests login BO
-const loginCommon = require('@commonTests/loginBO');
+const loginCommon = require('@commonTests/BO/loginBO');
 
 // Import pages
 const dashboardPage = require('@pages/BO/dashboard');
@@ -26,28 +28,12 @@ const PriceRuleFaker = require('@data/faker/catalogPriceRule');
 // Browser and tab
 let browserContext;
 let page;
+const today = getDateFormat('yyyy-mm-dd');
+const dateToCheck = getDateFormat('mm/dd/yyyy');
 
 let numberOfCatalogPriceRules = 0;
 
-// Today date
-const today = new Date();
-
-// Current day
-const day = (`0${today.getDate()}`).slice(-2);
-
-// Current month
-const month = (`0${today.getMonth() + 1}`).slice(-2);
-
-// Current year
-const year = today.getFullYear();
-
-// Date today format (yyyy-mm-dd)
-const todayDate = `${year}-${month}-${day}`;
-
-// Date today format (mm/dd/yyyy)
-const todayDateToCheck = `${month}/${day}/${year}`;
-
-const priceRuleData = new PriceRuleFaker({fromDate: todayDate, toDate: todayDate});
+const priceRuleData = new PriceRuleFaker({fromDate: today, toDate: today});
 /*
 Create 21 catalog price rules
 Filter catalog price rules by id, Name, Shop, Currency, Country, Group, From quantity, Reduction type,
@@ -57,7 +43,7 @@ Reduction, Beginning, End
 Pagination next and previous
 Delete created catalog price rules by bulk actions
  */
-describe('Filter, sort and pagination catalog price rules', async () => {
+describe('BO - Catalog - Discounts : Filter, sort and pagination catalog price rules table', async () => {
   // before and after functions
   before(async function () {
     browserContext = await helper.createBrowserContext(this.browser);
@@ -97,11 +83,15 @@ describe('Filter, sort and pagination catalog price rules', async () => {
   });
 
   // 1 - Create 21 catalog price rules
-  const creationTests = new Array(21).fill(0, 0, 21);
+  describe('Create 21 catalog price rules in BO', async () => {
+    const creationTests = new Array(21).fill(0, 0, 21);
+    creationTests.forEach((test, index) => {
+      const priceRuleData = new PriceRuleFaker({
+        name: `todelete${index}`,
+        fromDate: today,
+        toDate: today,
+      });
 
-  creationTests.forEach((test, index) => {
-    const priceRuleData = new PriceRuleFaker({name: `todelete${index}`, fromDate: todayDate, toDate: todayDate});
-    describe(`Create price rule n°${index + 1} in BO`, async () => {
       it('should go to new catalog price rule page', async function () {
         await testContext.addContextItem(this, 'testIdentifier', `goToNewCatalogPriceRule${index}`, baseContext);
 
@@ -111,7 +101,7 @@ describe('Filter, sort and pagination catalog price rules', async () => {
         await expect(pageTitle).to.contains(addCatalogPriceRulePage.pageTitle);
       });
 
-      it('should create new catalog price rule', async function () {
+      it(`should create catalog price rule n°${index + 1}`, async function () {
         await testContext.addContextItem(this, 'testIdentifier', `createCatalogPriceRule${index}`, baseContext);
 
         const validationMessage = await addCatalogPriceRulePage.setCatalogPriceRule(page, priceRuleData);
@@ -124,7 +114,7 @@ describe('Filter, sort and pagination catalog price rules', async () => {
   });
 
   // 2 - Filter catalog price rules table
-  describe('Filter catalog price rules', async () => {
+  describe('Filter catalog price rules table', async () => {
     const tests = [
       {
         args: {
@@ -134,11 +124,6 @@ describe('Filter, sort and pagination catalog price rules', async () => {
       {
         args: {
           testIdentifier: 'filterName', filterType: 'input', filterBy: 'a!name', filterValue: priceRuleData.name,
-        },
-      },
-      {
-        args: {
-          testIdentifier: 'filterShop', filterType: 'input', filterBy: 's!name', filterValue: global.INSTALL.SHOP_NAME,
         },
       },
       {
@@ -203,12 +188,7 @@ describe('Filter, sort and pagination catalog price rules', async () => {
         await expect(numberOfPriceRulesAfterFilter).to.be.at.most(numberOfCatalogPriceRules + 21);
 
         for (let row = 1; row <= numberOfPriceRulesAfterFilter; row++) {
-          const textColumn = await catalogPriceRulesPage.getTextColumn(
-            page,
-            row,
-            test.args.filterBy,
-          );
-
+          const textColumn = await catalogPriceRulesPage.getTextColumn(page, row, test.args.filterBy);
           await expect(textColumn).to.contains(test.args.filterValue);
         }
       });
@@ -224,12 +204,18 @@ describe('Filter, sort and pagination catalog price rules', async () => {
     const filterByDate = [
       {
         args: {
-          testIdentifier: 'filterDateBeginning', filterBy: 'from', firstDate: todayDate, secondDate: todayDate,
+          testIdentifier: 'filterDateBeginning',
+          filterBy: 'from',
+          firstDate: today,
+          secondDate: today,
         },
       },
       {
         args: {
-          testIdentifier: 'filterDateEnd', filterBy: 'to', firstDate: todayDate, secondDate: todayDate,
+          testIdentifier: 'filterDateEnd',
+          filterBy: 'to',
+          firstDate: today,
+          secondDate: today,
         },
       },
     ];
@@ -249,7 +235,7 @@ describe('Filter, sort and pagination catalog price rules', async () => {
             row,
             test.args.filterBy,
           );
-          await expect(textColumn).to.contains(todayDateToCheck);
+          await expect(textColumn).to.contains(dateToCheck);
         }
       });
 
@@ -263,7 +249,7 @@ describe('Filter, sort and pagination catalog price rules', async () => {
   });
 
   // 3 - Sort Price rules table
-  describe('Sort price rules table', async () => {
+  describe('Sort catalog price rules table', async () => {
     const sortTests = [
       {
         args: {
@@ -278,16 +264,6 @@ describe('Filter, sort and pagination catalog price rules', async () => {
       {
         args: {
           testIdentifier: 'sortByNameDesc', sortBy: 'a!name', sortDirection: 'down',
-        },
-      },
-      {
-        args: {
-          testIdentifier: 'sortByShopAsc', sortBy: 's!name', sortDirection: 'up',
-        },
-      },
-      {
-        args: {
-          testIdentifier: 'sortByShopDesc', sortBy: 's!name', sortDirection: 'down',
         },
       },
       {
@@ -322,12 +298,12 @@ describe('Filter, sort and pagination catalog price rules', async () => {
       },
       {
         args: {
-          testIdentifier: 'sortByFromQuantityAsc', sortBy: 'from_quantity', sortDirection: 'up',
+          testIdentifier: 'sortByFromQuantityAsc', sortBy: 'from_quantity', sortDirection: 'up', isFloat: true,
         },
       },
       {
         args: {
-          testIdentifier: 'sortByFromQuantityDesc', sortBy: 'from_quantity', sortDirection: 'down',
+          testIdentifier: 'sortByFromQuantityDesc', sortBy: 'from_quantity', sortDirection: 'down', isFloat: true,
         },
       },
       {
@@ -342,32 +318,32 @@ describe('Filter, sort and pagination catalog price rules', async () => {
       },
       {
         args: {
-          testIdentifier: 'sortByReductionAsc', sortBy: 'reduction', sortDirection: 'up',
+          testIdentifier: 'sortByReductionAsc', sortBy: 'reduction', sortDirection: 'up', isFloat: true,
         },
       },
       {
         args: {
-          testIdentifier: 'sortByReductionDesc', sortBy: 'reduction', sortDirection: 'down',
+          testIdentifier: 'sortByReductionDesc', sortBy: 'reduction', sortDirection: 'down', isFloat: true,
         },
       },
       {
         args: {
-          testIdentifier: 'sortByDateFromAsc', sortBy: 'from', sortDirection: 'up',
+          testIdentifier: 'sortByDateFromAsc', sortBy: 'from', sortDirection: 'up', isDate: true,
         },
       },
       {
         args: {
-          testIdentifier: 'sortByDateFromDesc', sortBy: 'from', sortDirection: 'down',
+          testIdentifier: 'sortByDateFromDesc', sortBy: 'from', sortDirection: 'down', isDate: true,
         },
       },
       {
         args: {
-          testIdentifier: 'sortByDateToAsc', sortBy: 'to', sortDirection: 'up',
+          testIdentifier: 'sortByDateToAsc', sortBy: 'to', sortDirection: 'up', isDate: true,
         },
       },
       {
         args: {
-          testIdentifier: 'sortByDateToDesc', sortBy: 'to', sortDirection: 'down',
+          testIdentifier: 'sortByDateToDesc', sortBy: 'to', sortDirection: 'down', isDate: true,
         },
       },
       {
@@ -392,7 +368,7 @@ describe('Filter, sort and pagination catalog price rules', async () => {
           sortedTable = await sortedTable.map(text => parseFloat(text));
         }
 
-        const expectedResult = await catalogPriceRulesPage.sortArray(nonSortedTable, test.args.isFloat);
+        const expectedResult = await basicHelper.sortArray(nonSortedTable, test.args.isFloat, test.args.isDate);
 
         if (test.args.sortDirection === 'up') {
           await expect(sortedTable).to.deep.equal(expectedResult);
@@ -405,8 +381,8 @@ describe('Filter, sort and pagination catalog price rules', async () => {
 
   // 4 - Pagination
   describe('Pagination next and previous', async () => {
-    it('should change the item number to 20 per page', async function () {
-      await testContext.addContextItem(this, 'testIdentifier', 'changeItemNumberTo20', baseContext);
+    it('should change the items number to 20 per page', async function () {
+      await testContext.addContextItem(this, 'testIdentifier', 'changeItemsNumberTo20', baseContext);
 
       const paginationNumber = await catalogPriceRulesPage.selectPaginationLimit(page, '20');
       expect(paginationNumber).to.equal('1');
@@ -427,7 +403,7 @@ describe('Filter, sort and pagination catalog price rules', async () => {
     });
 
     it('should change the item number to 50 per page', async function () {
-      await testContext.addContextItem(this, 'testIdentifier', 'changeItemNumberTo50', baseContext);
+      await testContext.addContextItem(this, 'testIdentifier', 'changeItemsNumberTo50', baseContext);
 
       const paginationNumber = await catalogPriceRulesPage.selectPaginationLimit(page, '50');
       expect(paginationNumber).to.equal('1');

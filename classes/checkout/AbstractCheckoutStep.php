@@ -45,6 +45,10 @@ abstract class AbstractCheckoutStepCore implements CheckoutStepInterface
     protected $template;
     protected $unreachableStepTemplate = 'checkout/_partials/steps/unreachable.tpl';
 
+    /**
+     * @param Context $context
+     * @param TranslatorInterface $translator
+     */
     public function __construct(Context $context, TranslatorInterface $translator)
     {
         $this->context = $context;
@@ -137,6 +141,11 @@ abstract class AbstractCheckoutStepCore implements CheckoutStepInterface
         return $this->step_is_reachable;
     }
 
+    /**
+     * @param bool $step_is_complete
+     *
+     * @return self
+     */
     public function setComplete($step_is_complete)
     {
         $this->step_is_complete = $step_is_complete;

@@ -1,7 +1,16 @@
 require('module-alias/register');
 const BOBasePage = require('@pages/BO/BObasePage');
 
+/**
+ * Add url page, contains functions that can be used on the page
+ * @class
+ * @extends BOBasePage
+ */
 class AddUrl extends BOBasePage {
+  /**
+   * @constructs
+   * Setting up texts and selectors to use on add url page
+   */
   constructor() {
     super();
 
@@ -19,14 +28,14 @@ class AddUrl extends BOBasePage {
 
   /**
    * Add shop URL
-   * @param page
-   * @param shopData
-   * @returns {Promise<*>}
+   * @param page {Page} Browser tab
+   * @param shopData {ShopData} Data to set on edit/add shop form
+   * @returns {Promise<string>}
    */
   async setVirtualUrl(page, shopData) {
     await this.setValue(page, this.virtualUrlInput, shopData.name);
 
-    await this.clickAndWaitForNavigation(page, this.saveButton);
+    await this.clickAndWaitForNavigation(page, this.saveButton, 'networkidle', 60000);
     return this.getTextContent(page, this.alertSuccessBlock);
   }
 }

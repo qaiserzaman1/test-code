@@ -29,6 +29,7 @@ namespace PrestaShopBundle\Entity\Repository;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Query\QueryBuilder;
 use PrestaShop\PrestaShop\Core\Grid\Query\DoctrineQueryBuilderInterface;
+use PrestaShop\PrestaShop\Core\Grid\Query\RequestSqlQueryBuilder;
 use PrestaShop\PrestaShop\Core\Grid\Search\SearchCriteriaInterface;
 use PrestaShop\PrestaShop\Core\Repository\RepositoryInterface;
 
@@ -41,21 +42,18 @@ class RequestSqlRepository implements RepositoryInterface, DoctrineQueryBuilderI
      * @var Connection
      */
     private $connection;
-
-    /**
-     * @var string
-     */
-    private $dbPrefix;
-
     /**
      * @var string
      */
     private $requestSqlTable;
 
+    /**
+     * @param Connection $connection
+     * @param string $dbPrefix
+     */
     public function __construct(Connection $connection, $dbPrefix)
     {
         $this->connection = $connection;
-        $this->dbPrefix = $dbPrefix;
         $this->requestSqlTable = $dbPrefix . 'request_sql';
     }
 
@@ -83,10 +81,26 @@ class RequestSqlRepository implements RepositoryInterface, DoctrineQueryBuilderI
     }
 
     /**
-     * {@inheritdoc}
+     * Get query that searches grid rows.
+     *
+     * @param SearchCriteriaInterface $searchCriteria
+     *
+     * @deprecated since 1.7.8.0
+     * @see RequestSqlQueryBuilder::getSearchQueryBuilder()
+     *
+     * @return QueryBuilder
      */
     public function getSearchQueryBuilder(SearchCriteriaInterface $searchCriteria = null)
     {
+        @trigger_error(
+            sprintf(
+                'The "%s()" method is deprecated since 1.7.8.0. Use %s instead.',
+                __METHOD__,
+                RequestSqlQueryBuilder::class . '::getSearchQueryBuilder()'
+            ),
+            E_USER_DEPRECATED
+        );
+
         $searchQueryBuilder = $this->buildQueryBySearchCriteria($searchCriteria);
 
         return $searchQueryBuilder
@@ -97,10 +111,26 @@ class RequestSqlRepository implements RepositoryInterface, DoctrineQueryBuilderI
     }
 
     /**
-     * {@inheritdoc}
+     * Get query that counts grid rows.
+     *
+     * @param SearchCriteriaInterface $searchCriteria
+     *
+     * @deprecated since 1.7.8.0
+     * @see RequestSqlQueryBuilder::getCountQueryBuilder()
+     *
+     * @return QueryBuilder
      */
     public function getCountQueryBuilder(SearchCriteriaInterface $searchCriteria = null)
     {
+        @trigger_error(
+            sprintf(
+                'The "%s()" method is deprecated since 1.7.8.0. Use %s instead.',
+                __METHOD__,
+                RequestSqlQueryBuilder::class . '::getCountQueryBuilder()'
+            ),
+            E_USER_DEPRECATED
+        );
+
         $countQueryBuilder = $this->buildQueryBySearchCriteria($searchCriteria);
         $countQueryBuilder->select('COUNT(rs.id_request_sql)');
 
@@ -112,10 +142,22 @@ class RequestSqlRepository implements RepositoryInterface, DoctrineQueryBuilderI
      *
      * @param SearchCriteriaInterface $criteria
      *
+     * @deprecated since 1.7.8.0
+     * @see RequestSqlQueryBuilder::buildQueryBySearchCriteria()
+     *
      * @return QueryBuilder
      */
     private function buildQueryBySearchCriteria(SearchCriteriaInterface $criteria)
     {
+        @trigger_error(
+            sprintf(
+                'The "%s()" method is deprecated since 1.7.8.0. Use %s instead.',
+                __METHOD__,
+                RequestSqlQueryBuilder::class . '::buildQueryBySearchCriteria()'
+            ),
+            E_USER_DEPRECATED
+        );
+
         $qb = $this->connection->createQueryBuilder();
         $qb->from($this->requestSqlTable, 'rs');
 

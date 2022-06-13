@@ -1,18 +1,20 @@
 require('module-alias/register');
 
+// Helpers to open and close browser
 const helper = require('@utils/helpers');
 
-// Import pages
+// Import BO pages
 const dashboardPage = require('@pages/BO/dashboard');
 const ordersPage = require('@pages/BO/orders');
 const addOrderPage = require('@pages/BO/orders/add');
-const viewOrderPage = require('@pages/BO/orders/view');
+const orderPageProductsBlock = require('@pages/BO/orders/view/productsBlock');
+const orderPageCustomerBlock = require('@pages/BO/orders/view/customerBlock');
 
-// Import login steps
-const loginCommon = require('@commonTests/loginBO');
+// Import common tests
+const loginCommon = require('@commonTests/BO/loginBO');
+const {deleteCartRuleTest} = require('@commonTests/BO/catalog/createDeleteCartRule');
 
 // Import data
-
 // Customer
 const {DefaultCustomer} = require('@data/demo/customer');
 
@@ -43,7 +45,6 @@ const orderToMake = {
   },
   paymentMethod: 'Payments by check',
   orderStatus: Statuses.paymentAccepted,
-
   totalPrice: (Products.demo_5.price * 4) * 1.2, // Price tax included
 };
 
@@ -59,16 +60,22 @@ let browserContext;
 let page;
 
 /*
-Go to create order page
-Search and choose a customer
-Add products to cart
-Choose address for delivery and invoice
-Choose payment status
-Set order status and save the order
-Check order status from view order page
-Check order total price from view order page
+Scenario:
+- Choose the default customer from Create order page
+- Add products to cart
+- Choose addresses for delivery and invoice
+- Choose payment status
+- Set order status and save the order
+- From view order page check these details :
+  - Order status
+  - Total price
+  - Shipping address
+  - Invoice address
+  - Products names
+Post-condition:
+- Delete Free shipping cart rule
  */
-describe('Create simple order in BO', async () => {
+describe('BO - Orders - Create order : Create simple order in BO', async () => {
   before(async function () {
     browserContext = await helper.createBrowserContext(this.browser);
     page = await helper.newTab(browserContext);
@@ -82,7 +89,7 @@ describe('Create simple order in BO', async () => {
     await loginCommon.loginBO(this, page);
   });
 
-  it('should go to orders page', async function () {
+  it('should go to \'Orders > Orders\' page', async function () {
     await testContext.addContextItem(this, 'testIdentifier', 'goToOrdersPage', baseContext);
 
     await dashboardPage.goToSubMenu(
@@ -92,6 +99,7 @@ describe('Create simple order in BO', async () => {
     );
 
     await ordersPage.closeSfToolBar(page);
+
     const pageTitle = await ordersPage.getPageTitle(page);
     await expect(pageTitle).to.contains(ordersPage.pageTitle);
   });
@@ -104,51 +112,51 @@ describe('Create simple order in BO', async () => {
     await expect(pageTitle).to.contains(addOrderPage.pageTitle);
   });
 
-  describe('Choose create order and check result', async () => {
-    it('should create an order', async function () {
+  describe('Create order and check result', async () => {
+    it('should create the order', async function () {
       await testContext.addContextItem(this, 'testIdentifier', 'createOrder', baseContext);
 
       await addOrderPage.createOrder(page, orderToMake);
-      const pageTitle = await viewOrderPage.getPageTitle(page);
-      await expect(pageTitle).to.contain(viewOrderPage.pageTitle);
+      const pageTitle = await orderPageProductsBlock.getPageTitle(page);
+      await expect(pageTitle).to.contain(orderPageProductsBlock.pageTitle);
     });
 
-    it('should check order status after creation', async function () {
+    it('should check order status', async function () {
       await testContext.addContextItem(this, 'testIdentifier', 'checkOrderStatus', baseContext);
 
-      const orderStatus = await viewOrderPage.getOrderStatus(page);
+      const orderStatus = await orderPageProductsBlock.getOrderStatus(page);
       await expect(orderStatus).to.equal(orderToMake.orderStatus.status);
     });
 
-    it('should check order total price after creation', async function () {
+    it('should check order total price', async function () {
       await testContext.addContextItem(this, 'testIdentifier', 'checkOrderPrice', baseContext);
 
-      const totalPrice = await viewOrderPage.getOrderTotalPrice(page);
+      const totalPrice = await orderPageProductsBlock.getOrderTotalPrice(page);
       await expect(totalPrice).to.equal(orderToMake.totalPrice);
     });
 
-    it('should check order shipping address after creation', async function () {
+    it('should check order shipping address', async function () {
       await testContext.addContextItem(this, 'testIdentifier', 'checkShippingAddress', baseContext);
 
-      const shippingAddress = await viewOrderPage.getShippingAddress(page);
+      const shippingAddress = await orderPageCustomerBlock.getShippingAddress(page);
       await expect(shippingAddress)
         .to.contain(orderToMake.addressValue.firstName)
         .and.to.contain(orderToMake.addressValue.lastName)
         .and.to.contain(orderToMake.addressValue.address)
-        .and.to.contain(orderToMake.addressValue.zipCode)
+        .and.to.contain(orderToMake.addressValue.postalCode)
         .and.to.contain(orderToMake.addressValue.city)
         .and.to.contain(orderToMake.addressValue.country);
     });
 
-    it('should check order invoice address after creation', async function () {
+    it('should check order invoice address', async function () {
       await testContext.addContextItem(this, 'testIdentifier', 'checkInvoiceAddress', baseContext);
 
-      const invoiceAddress = await viewOrderPage.getInvoiceAddress(page);
+      const invoiceAddress = await orderPageCustomerBlock.getInvoiceAddress(page);
       await expect(invoiceAddress)
         .to.contain(orderToMake.addressValue.firstName)
         .and.to.contain(orderToMake.addressValue.lastName)
         .and.to.contain(orderToMake.addressValue.address)
-        .and.to.contain(orderToMake.addressValue.zipCode)
+        .and.to.contain(orderToMake.addressValue.postalCode)
         .and.to.contain(orderToMake.addressValue.city)
         .and.to.contain(orderToMake.addressValue.country);
     });
@@ -157,9 +165,12 @@ describe('Create simple order in BO', async () => {
       await testContext.addContextItem(this, 'testIdentifier', 'checkProductsNames', baseContext);
 
       for (let i = 1; i <= orderToMake.products.length; i++) {
-        const productName = await viewOrderPage.getProductNameFromTable(page, i);
+        const productName = await orderPageProductsBlock.getProductNameFromTable(page, i);
         await expect(productName).to.contain(orderToMake.products[i - 1].value.name);
       }
     });
   });
+
+  // Post-Condition: delete cart rules
+  deleteCartRuleTest('Free Shipping', baseContext);
 });

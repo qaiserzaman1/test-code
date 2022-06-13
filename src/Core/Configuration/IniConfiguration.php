@@ -24,7 +24,7 @@
  * @license   https://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
  */
 
-namespace  PrestaShop\PrestaShop\Core\Configuration;
+namespace PrestaShop\PrestaShop\Core\Configuration;
 
 /**
  * Gets ini configuration.
@@ -57,7 +57,7 @@ class IniConfiguration
     /**
      * Convert a numeric value to bytes.
      *
-     * @param int $value
+     * @param string $value
      *
      * @return int
      */

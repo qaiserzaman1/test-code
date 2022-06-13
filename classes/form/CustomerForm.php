@@ -23,8 +23,10 @@
  * @copyright Since 2007 PrestaShop SA and Contributors
  * @license   https://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
  */
+use PrestaShop\PrestaShop\Core\Security\PasswordPolicyConfiguration;
 use PrestaShop\PrestaShop\Core\Util\InternationalizedDomainNameConverter;
 use Symfony\Component\Translation\TranslatorInterface;
+use ZxcvbnPhp\Zxcvbn;
 
 /**
  * StarterTheme TODO: B2B fields, Genders, CSRF.
@@ -32,6 +34,11 @@ use Symfony\Component\Translation\TranslatorInterface;
 class CustomerFormCore extends AbstractForm
 {
     protected $template = 'customer/_partials/customer-form.tpl';
+
+    /**
+     * @var CustomerFormatter
+     */
+    protected $formatter;
 
     private $context;
     private $urls;
@@ -65,6 +72,7 @@ class CustomerFormCore extends AbstractForm
     public function setGuestAllowed($guest_allowed = true)
     {
         $this->formatter->setPasswordRequired(!$guest_allowed);
+        $this->setPasswordRequired(!$guest_allowed);
         $this->guest_allowed = $guest_allowed;
 
         return $this;
@@ -138,6 +146,57 @@ class CustomerFormCore extends AbstractForm
             );
             $birthdayField->setValue($dateBuilt->format('Y-m-d'));
         }
+
+        if ($this->getField('new_password') === null
+            || !empty($this->getField('new_password')->getValue())
+        ) {
+            $passwordField = $this->getField('new_password') ?? $this->getField('password');
+            if (!empty($passwordField->getValue()) || $this->passwordRequired) {
+                if (Validate::isAcceptablePasswordLength($passwordField->getValue()) === false) {
+                    $passwordField->addError($this->translator->trans(
+                        'Password must be between %d and %d characters long',
+                        [
+                            Configuration::get(PasswordPolicyConfiguration::CONFIGURATION_MINIMUM_LENGTH),
+                            Configuration::get(PasswordPolicyConfiguration::CONFIGURATION_MAXIMUM_LENGTH),
+                        ],
+                        'Shop.Notifications.Error'
+                    ));
+                }
+
+                if (Validate::isAcceptablePasswordScore($passwordField->getValue()) === false) {
+                    $wordingsForScore = [
+                        $this->translator->trans('Very weak', [], 'Shop.Theme.Global'),
+                        $this->translator->trans('Weak', [], 'Shop.Theme.Global'),
+                        $this->translator->trans('Average', [], 'Shop.Theme.Global'),
+                        $this->translator->trans('Strong', [], 'Shop.Theme.Global'),
+                        $this->translator->trans('Very strong', [], 'Shop.Theme.Global'),
+                    ];
+                    $globalErrorMessage = $this->translator->trans(
+                        'The minimum score must be: %s',
+                        [
+                            $wordingsForScore[(int) Configuration::get(PasswordPolicyConfiguration::CONFIGURATION_MINIMUM_SCORE)],
+                        ],
+                        'Shop.Notifications.Error'
+                    );
+                    if ($this->context->shop->theme->get('global_settings.new_password_policy_feature') !== true) {
+                        $zxcvbn = new Zxcvbn();
+                        $result = $zxcvbn->passwordStrength($passwordField->getValue());
+                        if (!empty($result['feedback']['warning'])) {
+                            $passwordField->addError($this->translator->trans(
+                                $result['feedback']['warning'], [], 'Shop.Theme.Global'
+                            ));
+                        } else {
+                            $passwordField->addError($globalErrorMessage);
+                        }
+                        foreach ($result['feedback']['suggestions'] as $suggestion) {
+                            $passwordField->addError($this->translator->trans($suggestion, [], 'Shop.Theme.Global'));
+                        }
+                    } else {
+                        $passwordField->addError($globalErrorMessage);
+                    }
+                }
+            }
+        }
         $this->validateFieldsLengths();
         $this->validateByModules();
 
@@ -152,9 +211,9 @@ class CustomerFormCore extends AbstractForm
     }
 
     /**
-     * @param $fieldName
-     * @param $maximumLength
-     * @param $violationMessage
+     * @param string $fieldName
+     * @param int $maximumLength
+     * @param string $violationMessage
      */
     protected function validateFieldLength($fieldName, $maximumLength, $violationMessage)
     {
@@ -259,7 +318,7 @@ class CustomerFormCore extends AbstractForm
                 $validatedCustomerFormFields = Hook::exec('validateCustomerFormFields', ['fields' => $formFields], $moduleId, true);
 
                 if (is_array($validatedCustomerFormFields)) {
-                    array_merge($this->formFields, $validatedCustomerFormFields);
+                    $this->formFields = array_merge($this->formFields, $validatedCustomerFormFields);
                 }
             }
         }

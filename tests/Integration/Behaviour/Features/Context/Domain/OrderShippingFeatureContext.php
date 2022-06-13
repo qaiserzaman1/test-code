@@ -100,7 +100,7 @@ class OrderShippingFeatureContext extends AbstractDomainFeatureContext
     {
         /** @var CarrierByReferenceChoiceProvider $carrierChoiceProvider */
         $carrierChoiceProvider = $this->getContainer()
-                                      ->get('prestashop.core.form.choice_provider.carrier_by_reference_id');
+            ->get('prestashop.core.form.choice_provider.carrier_by_reference_id');
         $availableCarriers = $carrierChoiceProvider->getChoices();
 
         if (isset($availableCarriers[$carrier])) {
@@ -112,15 +112,11 @@ class OrderShippingFeatureContext extends AbstractDomainFeatureContext
     /**
      * @param int $orderId
      *
-     * @return array|OrderCarrierForViewing[]
-     *
-     * @throws RuntimeException
+     * @return OrderCarrierForViewing[]
      */
-    private function getOrderCarriersForViewing(int $orderId)
+    private function getOrderCarriersForViewing(int $orderId): array
     {
-        /** @var OrderForViewing $orderForViewing */
         $orderForViewing = $this->getQueryBus()->handle(new GetOrderForViewing($orderId));
-        /** @var OrderCarrierForViewing[] $orderCarriers */
         $orderCarriersForViewing = $orderForViewing->getShipping()->getCarriers();
 
         if (count($orderCarriersForViewing) == 0) {

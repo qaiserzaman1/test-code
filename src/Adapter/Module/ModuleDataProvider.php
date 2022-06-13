@@ -33,7 +33,7 @@ use PhpParser;
 use PrestaShop\PrestaShop\Adapter\Shop\Context;
 use PrestaShop\PrestaShop\Core\Addon\Module\AddonListFilterDeviceStatus;
 use Psr\Log\LoggerInterface;
-use Symfony\Component\Translation\TranslatorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Tools;
 use Validate;
 
@@ -52,7 +52,7 @@ class ModuleDataProvider
     /**
      * Translator.
      *
-     * @var \Symfony\Component\Translation\TranslatorInterface
+     * @var TranslatorInterface
      */
     private $translator;
 
@@ -77,7 +77,7 @@ class ModuleDataProvider
     }
 
     /**
-     * @param $employeeID
+     * @param int $employeeID
      */
     public function setEmployeeId($employeeID)
     {
@@ -93,7 +93,14 @@ class ModuleDataProvider
      */
     public function findByName($name)
     {
-        $result = Db::getInstance()->getRow('SELECT `id_module` as `id`, `active`, `version` FROM `' . _DB_PREFIX_ . 'module` WHERE `name` = "' . pSQL($name) . '"');
+        $result = Db::getInstance()->getRow(
+            sprintf(
+                'SELECT `id_module` as `id`, `active`, `version` FROM `%smodule` WHERE `name` = "%s"',
+                _DB_PREFIX_,
+                pSQL($name)
+            )
+        );
+        /** @var array{id: string, active: string, version: string}|false|null $result */
         if ($result) {
             $result['installed'] = 1;
             $result['active'] = $this->isEnabled($name);
@@ -121,7 +128,45 @@ class ModuleDataProvider
             return $result;
         }
 
-        return ['installed' => 0];
+        return [
+            'installed' => 0,
+        ];
+    }
+
+    /**
+     * Return installed modules along with their id, name and version
+     * If a specific shop is selected, active and active_on_mobile keys are added
+     *
+     * @return array
+     */
+    public function getInstalled(): array
+    {
+        $select = 'SELECT m.`id_module` as id, m.`name`, m.`version`, 1 as installed';
+        $from = ' FROM `' . _DB_PREFIX_ . 'module` m';
+
+        $id_shops = (new Context())->getContextListShopID();
+        if (count($id_shops) === 1) {
+            $select .= ', ms.`id_module` as active, ms.`enable_device` as active_on_mobile';
+            $from .= ' LEFT JOIN `' . _DB_PREFIX_ . 'module_shop` ms ON ms.`id_module` = m.`id_module`';
+            $from .= ' AND ms.`id_shop` = ' . reset($id_shops);
+        }
+
+        $results = Db::getInstance()->executeS($select . $from);
+        $modules = [];
+
+        /** @var array{id: int, name:string, version: string, installed: int}|array{id: int, name:string, version: string, installed: int, active:int, active_on_mobile: int} $module */
+        foreach ($results as $module) {
+            $module['installed'] = (bool) $module['installed'];
+            if (array_key_exists('active_on_mobile', $module)) {
+                $module['active_on_mobile'] = (bool) ($module['active_on_mobile'] & AddonListFilterDeviceStatus::DEVICE_MOBILE);
+            }
+            if (array_key_exists('active', $module)) {
+                $module['active'] = (bool) $module['active'];
+            }
+            $modules[$module['name']] = $module;
+        }
+
+        return $modules;
     }
 
     /**
@@ -158,7 +203,7 @@ class ModuleDataProvider
     /**
      * Check if a module is enabled in the current shop context.
      *
-     * @param bool $name The technical module name
+     * @param string $name The technical module name
      *
      * @return bool True if enable
      */
@@ -218,7 +263,11 @@ class ModuleDataProvider
             return false;
         }
 
-        $parser = (new PhpParser\ParserFactory())->create(PhpParser\ParserFactory::PREFER_PHP7);
+        $parser = (new PhpParser\ParserFactory())->create(PhpParser\ParserFactory::ONLY_PHP7);
+        $log_context_data = [
+            'object_type' => 'Module',
+            'object_id' => LegacyModule::getModuleIdByName($name),
+        ];
 
         try {
             $parser->parse(file_get_contents($file_path));
@@ -231,7 +280,8 @@ class ModuleDataProvider
                         '%parse_error%' => $exception->getMessage(),
                     ],
                     'Admin.Modules.Notification'
-                )
+                ),
+                $log_context_data
             );
 
             return false;
@@ -243,7 +293,7 @@ class ModuleDataProvider
         // -> We use an anonymous function here because if a test is made twice
         // on the same module, the test on require_once would immediately return true
         // (as the file would have already been evaluated).
-        $require_correct = function ($name) use ($file_path, $logger) {
+        $require_correct = function ($name) use ($file_path, $logger, $log_context_data) {
             try {
                 require_once $file_path;
             } catch (\Exception $e) {
@@ -254,7 +304,8 @@ class ModuleDataProvider
                             '%module%' => $name,
                             '%error_message%' => $e->getMessage(), ],
                         'Admin.Modules.Notification'
-                    )
+                    ),
+                    $log_context_data
                 );
 
                 return false;
@@ -285,7 +336,7 @@ class ModuleDataProvider
      *
      * @param string $name The technical module name to check
      *
-     * @return int The devices enabled for this module
+     * @return int|false The devices enabled for this module
      */
     private function getDeviceStatus($name)
     {

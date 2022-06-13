@@ -29,14 +29,13 @@ namespace PrestaShopBundle\Controller\Admin;
 use Exception;
 use PrestaShop\PrestaShop\Adapter\Configuration;
 use PrestaShop\PrestaShop\Adapter\Shop\Context;
-use PrestaShop\PrestaShop\Core\ConfigurationInterface;
 use PrestaShop\PrestaShop\Core\Grid\GridInterface;
 use PrestaShop\PrestaShop\Core\Localization\Locale;
 use PrestaShop\PrestaShop\Core\Localization\Locale\Repository as LocaleRepository;
 use PrestaShop\PrestaShop\Core\Module\Exception\ModuleErrorInterface;
 use PrestaShopBundle\Security\Voter\PageVoter;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Template;
-use Symfony\Bundle\FrameworkBundle\Controller\Controller;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\Form;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormInterface;
@@ -47,12 +46,12 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Extends The Symfony framework bundle controller to add common functions for PrestaShop needs.
  */
-class FrameworkBundleAdminController extends Controller
+class FrameworkBundleAdminController extends AbstractController
 {
-    const PRESTASHOP_CORE_CONTROLLERS_TAG = 'prestashop.core.controllers';
+    public const PRESTASHOP_CORE_CONTROLLERS_TAG = 'prestashop.core.controllers';
 
     /**
-     * @var ConfigurationInterface|Configuration
+     * @var Configuration
      */
     protected $configuration;
 
@@ -72,10 +71,14 @@ class FrameworkBundleAdminController extends Controller
     /**
      * @Template
      *
-     * @return array Template vars
+     * @deprecated Since 8.0, to be removed in the next major version
+     *
+     * @return array|Response Template vars if the action uses template annotation, or a Response object
      */
     public function overviewAction()
     {
+        @trigger_error(__FUNCTION__ . 'is deprecated since version 8.0 and will be removed in the next major version.', E_USER_DEPRECATED);
+
         return [
             'is_shop_context' => (new Context())->isShopContext(),
             'layoutTitle' => empty($this->layoutTitle) ? '' : $this->trans($this->layoutTitle, 'Admin.Navigation.Menu'),
@@ -87,17 +90,17 @@ class FrameworkBundleAdminController extends Controller
      *
      * Parse all errors mapped by id html field
      *
-     * @param Form $form The form
+     * @param FormInterface $form
      *
-     * @return array[array[string]] Errors
+     * @return array<array<string>> Errors
      *
      * @throws \Symfony\Component\Translation\Exception\InvalidArgumentException
      */
-    public function getFormErrorsForJS(Form $form)
+    public function getFormErrorsForJS(FormInterface $form)
     {
         $errors = [];
 
-        if (empty($form)) {
+        if ($form->count() === 0) {
             return $errors;
         }
 
@@ -173,7 +176,7 @@ class FrameworkBundleAdminController extends Controller
      */
     protected function generateSidebarLink($section, $title = false)
     {
-        $version = $this->get('prestashop.core.foundation.version')->getVersion();
+        $version = $this->get('prestashop.core.foundation.version')->getSemVersion();
         $legacyContext = $this->get('prestashop.adapter.legacy.context');
 
         if (empty($title)) {
@@ -200,6 +203,16 @@ class FrameworkBundleAdminController extends Controller
     }
 
     /**
+     * @return string
+     *
+     * //@todo: is there a better way using currency iso_code?
+     */
+    protected function getContextCurrencyIso(): string
+    {
+        return $this->getContext()->currency->iso_code;
+    }
+
+    /**
      * Get the locale based on the context
      *
      * @return Locale
@@ -221,7 +234,7 @@ class FrameworkBundleAdminController extends Controller
     }
 
     /**
-     * @param $lang
+     * @param string $lang
      *
      * @return mixed
      */
@@ -249,7 +262,7 @@ class FrameworkBundleAdminController extends Controller
     /**
      * Checks if the attributes are granted against the current authentication token and optionally supplied object.
      *
-     * @param string $controller name of the controller to valide access
+     * @param string $controller name of the controller that token is tested against
      *
      * @return int
      *
@@ -321,8 +334,8 @@ class FrameworkBundleAdminController extends Controller
     /**
      * Check if the connected user is granted to actions on a specific object.
      *
-     * @param $action
-     * @param $object
+     * @param string $action
+     * @param string $object
      * @param string $suffix
      *
      * @return bool
@@ -345,7 +358,7 @@ class FrameworkBundleAdminController extends Controller
     /**
      * Display a message about permissions failure according to an action.
      *
-     * @param $action
+     * @param string $action
      * @param string $suffix
      *
      * @return string
@@ -373,7 +386,7 @@ class FrameworkBundleAdminController extends Controller
      * Get fallback error message when something unexpected happens.
      *
      * @param string $type
-     * @param string $code
+     * @param int $code
      * @param string $message
      *
      * @return string

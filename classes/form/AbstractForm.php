@@ -28,16 +28,34 @@ use Symfony\Component\Translation\TranslatorInterface;
 
 abstract class AbstractFormCore implements FormInterface
 {
+    /**
+     * @var Smarty
+     */
     private $smarty;
+    /**
+     * @var TranslatorInterface
+     */
     protected $translator;
+    /**
+     * @var ValidateConstraintTranslator
+     */
     protected $constraintTranslator;
+
+    /**
+     * @var FormFormatterInterface
+     */
+    protected $formatter;
 
     protected $action;
     protected $template;
 
-    protected $formatter;
-
+    /**
+     * @var array
+     */
     protected $formFields = [];
+    /**
+     * @var array[]
+     */
     protected $errors = ['' => []];
 
     public function __construct(
@@ -133,14 +151,34 @@ abstract class AbstractFormCore implements FormInterface
     public function validate()
     {
         foreach ($this->formFields as $field) {
-            if ($field->isRequired() && !$field->getValue()) {
-                $field->addError(
-                    $this->constraintTranslator->translate('required')
-                );
+            if ($field->isRequired()) {
+                if (!$field->getValue()) {
+                    $field->addError(
+                        $this->constraintTranslator->translate('required')
+                    );
 
-                continue;
-            } elseif (!$field->isRequired() && !$field->getValue()) {
-                continue;
+                    continue;
+                } elseif (!$this->checkFieldLength($field)) {
+                    $field->addError(
+                        $this->translator->trans(
+                            'The %1$s field is too long (%2$d chars max).',
+                            [$field->getLabel(), $field->getMaxLength()],
+                            'Shop.Notifications.Error'
+                        )
+                    );
+                }
+            } else {
+                if (!$field->getValue()) {
+                    continue;
+                } elseif (!$this->checkFieldLength($field)) {
+                    $field->addError(
+                        $this->translator->trans(
+                            'The %1$s field is too long (%2$d chars max).',
+                            [$field->getLabel(), $field->getMaxLength()],
+                            'Shop.Notifications.Error'
+                        )
+                    );
+                }
             }
 
             foreach ($field->getConstraints() as $constraint) {
@@ -171,7 +209,9 @@ abstract class AbstractFormCore implements FormInterface
             } elseif ($field->getType() === 'checkbox') {
                 // checkboxes that are not submitted
                 // are interpreted as booleans switched off
-                $field->setValue(false);
+                if (empty($field->getValue())) {
+                    $field->setValue(false);
+                }
             }
         }
 
@@ -203,5 +243,19 @@ abstract class AbstractFormCore implements FormInterface
         $this->getField($field_name)->setValue($value);
 
         return $this;
+    }
+
+    /**
+     * Validate field length
+     *
+     * @param FormField $field the field to check
+     *
+     * @return bool
+     */
+    protected function checkFieldLength($field)
+    {
+        $error = $field->getMaxLength() != null && strlen($field->getValue()) > (int) $field->getMaxLength();
+
+        return !$error;
     }
 }

@@ -1,5 +1,5 @@
 # ./vendor/bin/behat -c tests/Integration/Behaviour/behat.yml -s order --tags add-discounts-to-order
-@reset-database-before-feature
+@restore-all-tables-before-feature
 @reboot-kernel-before-feature
 @add-discounts-to-order
 Feature: Add discounts to order from Back Office (BO)
@@ -42,6 +42,16 @@ Feature: Add discounts to order from Back Office (BO)
       | shipping      | $7.00    |
       | taxes         | $1.85    |
       | total         | $32.65   |
+
+  Scenario: Add a discount to order (no invoices) whose name contains HTML characters
+    Given order "bo_order1" does not have any invoices
+    When I add discount to order "bo_order1" with following details:
+      | name      | <<           |
+      | type      | amount      |
+      | value     | 5.50         |
+    Then I should get no order error
+    And order "bo_order1" should have 1 cart rule
+    And order "bo_order1" should have a cart rule with name "<<"
 
   Scenario: Add amount type discount to order which has no invoices
     Given order "bo_order1" does not have any invoices

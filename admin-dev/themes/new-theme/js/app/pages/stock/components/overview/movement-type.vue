@@ -34,39 +34,42 @@
         @click="sendQty"
       >
         <i class="material-icons">edit</i>
-        {{trans('button_movement_type')}}
+        {{ trans('button_movement_type') }}
       </PSButton>
     </div>
   </div>
 </template>
 
-<script>
-  import PSButton from '@app/widgets/ps-button';
+<script lang="ts">
+  import Vue from 'vue';
+  import PSButton from '@app/widgets/ps-button.vue';
 
-  export default {
+  export default Vue.extend({
     computed: {
-      disabled() {
+      disabled(): boolean {
         return !this.$store.state.hasQty;
       },
-      classObject() {
+      classObject(): {'btn-primary': boolean} {
         return {
           'btn-primary': !this.disabled,
         };
       },
     },
     methods: {
-      sendQty() {
+      sendQty(): void {
+        this.$store.state.hasQty = false;
         this.$store.dispatch('updateQtyByProductsId');
       },
     },
     components: {
       PSButton,
     },
-  };
+  });
 </script>
 
 <style lang="scss" scoped>
-  @import "../../../../../../scss/config/_settings.scss";
+  @import '~@scss/config/_settings.scss';
+
   .update-qty {
     color: white;
     transition: background-color 0.2s ease;

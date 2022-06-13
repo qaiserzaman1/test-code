@@ -1,10 +1,15 @@
 require('module-alias/register');
+
 // Using chai
 const {expect} = require('chai');
 
 // Import utils
 const helper = require('@utils/helpers');
-const loginCommon = require('@commonTests/loginBO');
+const basicHelper = require('@utils/basicHelper');
+const testContext = require('@utils/testContext');
+
+// Import login steps
+const loginCommon = require('@commonTests/BO/loginBO');
 
 // Import pages
 const dashboardPage = require('@pages/BO/dashboard');
@@ -14,9 +19,6 @@ const addCartRulePage = require('@pages/BO/catalog/discounts/add');
 // Import data
 const CartRuleFaker = require('@data/faker/cartRule');
 
-// import test context
-const testContext = require('@utils/testContext');
-
 const baseContext = 'functional_BO_catalog_discounts_cartRules_sortAndPaginationCartRule';
 
 let browserContext;
@@ -24,7 +26,13 @@ let page;
 
 let numberOfCartRules = 0;
 
-describe('Sort and pagination cart rules', async () => {
+/*
+Create 21 cart rules
+Pagination between pages
+Sort cart rules table by Id, name, priority, code, quantity and date
+Delete created cart rules by bulk actions
+ */
+describe('BO - Catalog - Discounts : Sort and pagination cart rules', async () => {
   // before and after functions
   before(async function () {
     browserContext = await helper.createBrowserContext(this.browser);
@@ -52,7 +60,7 @@ describe('Sort and pagination cart rules', async () => {
     await expect(pageTitle).to.contains(cartRulesPage.pageTitle);
   });
 
-  it('should reset and get number of cart rules', async function () {
+  it('should reset filter and get number of cart rules', async function () {
     await testContext.addContextItem(this, 'testIdentifier', 'resetFirst', baseContext);
 
     numberOfCartRules = await cartRulesPage.resetAndGetNumberOfLines(page);
@@ -60,10 +68,9 @@ describe('Sort and pagination cart rules', async () => {
   });
 
   // 1 - create 21 cart rules
-  const creationTests = new Array(21).fill(0, 0, 21);
-
-  creationTests.forEach((test, index) => {
-    describe(`Create cart rule n°${index + 1}`, async () => {
+  describe('Create 21 cart rules', async () => {
+    const creationTests = new Array(21).fill(0, 0, 21);
+    creationTests.forEach((test, index) => {
       const cartRuleData = new CartRuleFaker({
         name: `todelete${index}`,
         discountType: 'Percent',
@@ -78,7 +85,7 @@ describe('Sort and pagination cart rules', async () => {
         await expect(pageTitle).to.contains(addCartRulePage.pageTitle);
       });
 
-      it('should create new cart rule', async function () {
+      it(`should create cart rule n°${index + 1}`, async function () {
         await testContext.addContextItem(this, 'testIdentifier', `createCartRule${index}`, baseContext);
 
         const validationMessage = await addCartRulePage.createEditCartRules(page, cartRuleData);
@@ -92,8 +99,8 @@ describe('Sort and pagination cart rules', async () => {
 
   // 2 - Pagination
   describe('Pagination next and previous', async () => {
-    it('should change the item number to 20 per page', async function () {
-      await testContext.addContextItem(this, 'testIdentifier', 'changeItemNumberTo20', baseContext);
+    it('should change the items number to 20 per page', async function () {
+      await testContext.addContextItem(this, 'testIdentifier', 'changeItemsNumberTo20', baseContext);
 
       const paginationNumber = await cartRulesPage.selectPaginationLimit(page, '20');
       expect(paginationNumber).to.equal('1');
@@ -113,8 +120,8 @@ describe('Sort and pagination cart rules', async () => {
       expect(paginationNumber).to.equal('1');
     });
 
-    it('should change the item number to 50 per page', async function () {
-      await testContext.addContextItem(this, 'testIdentifier', 'changeItemNumberTo50', baseContext);
+    it('should change the items number to 50 per page', async function () {
+      await testContext.addContextItem(this, 'testIdentifier', 'changeItemsNumberTo50', baseContext);
 
       const paginationNumber = await cartRulesPage.selectPaginationLimit(page, '50');
       expect(paginationNumber).to.equal('1');
@@ -200,7 +207,7 @@ describe('Sort and pagination cart rules', async () => {
           sortedTable = await sortedTable.map(text => parseFloat(text));
         }
 
-        const expectedResult = await cartRulesPage.sortArray(nonSortedTable, test.args.isFloat, test.args.isDate);
+        const expectedResult = await basicHelper.sortArray(nonSortedTable, test.args.isFloat, test.args.isDate);
 
         if (test.args.sortDirection === 'up') {
           await expect(sortedTable).to.deep.equal(expectedResult);
@@ -212,35 +219,32 @@ describe('Sort and pagination cart rules', async () => {
   });
 
   // 4 : Delete with bulk actions
-  describe('Delete carriers with Bulk Actions', async () => {
+  describe('Delete cart rules with bulk actions', async () => {
     it('should filter list by name', async function () {
       await testContext.addContextItem(this, 'testIdentifier', 'filterForBulkDelete', baseContext);
 
-      await cartRulesPage.filterCartRules(
-        page,
-        'input',
-        'name',
-        'todelete',
-      );
+      await cartRulesPage.filterCartRules(page, 'input', 'name', 'todelete');
 
       const numberOfCartRulesAfterFilter = await cartRulesPage.getNumberOfElementInGrid(page);
 
       for (let i = 1; i <= numberOfCartRulesAfterFilter; i++) {
-        const textColumn = await cartRulesPage.getTextColumn(
-          page,
-          i,
-          'name',
-        );
-
+        const textColumn = await cartRulesPage.getTextColumn(page, i, 'name');
         await expect(textColumn).to.contains('todelete');
       }
     });
 
-    it('should delete cart rules with Bulk Actions and check result', async function () {
+    it('should delete cart rules and check result', async function () {
       await testContext.addContextItem(this, 'testIdentifier', 'bulkDeleteCartRules', baseContext);
 
       const deleteTextResult = await cartRulesPage.bulkDeleteCartRules(page);
       await expect(deleteTextResult).to.be.contains(cartRulesPage.successfulMultiDeleteMessage);
+    });
+
+    it('should reset all filters', async function () {
+      await testContext.addContextItem(this, 'testIdentifier', 'resetFilterAfterBulkDelete', baseContext);
+
+      const numberOfCartRulesAfterDelete = await cartRulesPage.resetAndGetNumberOfLines(page);
+      await expect(numberOfCartRulesAfterDelete).to.equal(numberOfCartRules);
     });
   });
 });

@@ -30,7 +30,7 @@ use PrestaShopBundle\Routing\Converter\Exception\AlreadyConvertedException;
 use PrestaShopBundle\Routing\Converter\Exception\ArgumentException;
 use PrestaShopBundle\Routing\Converter\Exception\RouteNotFoundException;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\Routing\Exception\Exceptioninterface;
+use Symfony\Component\Routing\Exception\ExceptionInterface;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Routing\RouterInterface;
 
@@ -209,7 +209,7 @@ final class LegacyUrlConverter
         //interpreted as an action.. but some old link need this feature, ?controller=AdminModulesPositions&addToHook)
         if (null === $legacyAction) {
             foreach ($parameters as $parameter => $value) {
-                if ($value === '' || 1 === (int) $value) {
+                if ($value === '' || $value === '1' || $value === 1) {
                     //Avoid confusing an entity/row id with an action
                     // e.g.
                     //  create=1 is an action

@@ -26,8 +26,11 @@
 
 namespace PrestaShop\PrestaShop\Adapter\Preferences;
 
+use Cookie;
 use PrestaShop\PrestaShop\Adapter\Configuration;
 use PrestaShop\PrestaShop\Core\Configuration\DataConfigurationInterface;
+use PrestaShop\PrestaShop\Core\FeatureFlag\FeatureFlagSettings;
+use PrestaShopBundle\Entity\Repository\FeatureFlagRepository;
 
 /**
  * This class will provide Shop Preferences configuration.
@@ -39,9 +42,17 @@ class PreferencesConfiguration implements DataConfigurationInterface
      */
     private $configuration;
 
-    public function __construct(Configuration $configuration)
-    {
+    /**
+     * @var FeatureFlagRepository
+     */
+    protected $featureFlagRepository;
+
+    public function __construct(
+        Configuration $configuration,
+        FeatureFlagRepository $featureFlagRepository
+    ) {
         $this->configuration = $configuration;
+        $this->featureFlagRepository = $featureFlagRepository;
     }
 
     /**
@@ -70,22 +81,64 @@ class PreferencesConfiguration implements DataConfigurationInterface
      */
     public function updateConfiguration(array $configuration)
     {
-        if ($this->validateConfiguration($configuration)) {
-            $this->configuration->set('PS_SSL_ENABLED', $configuration['enable_ssl']);
-            $this->configuration->set('PS_SSL_ENABLED_EVERYWHERE', $configuration['enable_ssl_everywhere']);
-            $this->configuration->set('PS_TOKEN_ENABLE', $configuration['enable_token']);
-            $this->configuration->set('PS_ALLOW_HTML_IFRAME', $configuration['allow_html_iframes']);
-            $this->configuration->set('PS_USE_HTMLPURIFIER', $configuration['use_htmlpurifier']);
-            $this->configuration->set('PS_PRICE_ROUND_MODE', $configuration['price_round_mode']);
-            $this->configuration->set('PS_ROUND_TYPE', $configuration['price_round_type']);
-            $this->configuration->set('PS_DISPLAY_SUPPLIERS', $configuration['display_suppliers']);
-            $this->configuration->set('PS_DISPLAY_MANUFACTURERS', $configuration['display_manufacturers']);
-            $this->configuration->set('PS_DISPLAY_BEST_SELLERS', $configuration['display_best_sellers']);
-            $this->configuration->set('PS_MULTISHOP_FEATURE_ACTIVE', $configuration['multishop_feature_active']);
-            $this->configuration->set('PS_SHOP_ACTIVITY', $configuration['shop_activity']);
+        if (false === $this->validateConfiguration($configuration)) {
+            return [
+                [
+                    'key' => 'Invalid configuration',
+                    'domain' => 'Admin.Notifications.Warning',
+                    'parameters' => [],
+                ],
+            ];
+        }
+
+        if ($this->validateSameSiteConfiguration($configuration)) {
+            return [
+                [
+                    'key' => 'Cannot disable SSL configuration due to the Cookie SameSite=None.',
+                    'domain' => 'Admin.Advparameters.Notification',
+                    'parameters' => [],
+                ],
+            ];
+        }
+
+        $previousMultistoreFeatureState = $this->configuration->get('PS_MULTISHOP_FEATURE_ACTIVE');
+
+        $this->configuration->set('PS_SSL_ENABLED', $configuration['enable_ssl']);
+        $this->configuration->set('PS_SSL_ENABLED_EVERYWHERE', $configuration['enable_ssl_everywhere']);
+        $this->configuration->set('PS_TOKEN_ENABLE', $configuration['enable_token']);
+        $this->configuration->set('PS_ALLOW_HTML_IFRAME', $configuration['allow_html_iframes']);
+        $this->configuration->set('PS_USE_HTMLPURIFIER', $configuration['use_htmlpurifier']);
+        $this->configuration->set('PS_PRICE_ROUND_MODE', $configuration['price_round_mode']);
+        $this->configuration->set('PS_ROUND_TYPE', $configuration['price_round_type']);
+        $this->configuration->set('PS_DISPLAY_SUPPLIERS', $configuration['display_suppliers']);
+        $this->configuration->set('PS_DISPLAY_MANUFACTURERS', $configuration['display_manufacturers']);
+        $this->configuration->set('PS_DISPLAY_BEST_SELLERS', $configuration['display_best_sellers']);
+        $this->configuration->set('PS_MULTISHOP_FEATURE_ACTIVE', $configuration['multishop_feature_active']);
+        $this->configuration->set('PS_SHOP_ACTIVITY', $configuration['shop_activity']);
+
+        // Update product page feature automatically based on PS_MULTISHOP_FEATURE_ACTIVE
+        if (!$previousMultistoreFeatureState && (bool) $this->configuration->get('PS_MULTISHOP_FEATURE_ACTIVE')) {
+            $this->featureFlagRepository->disable(FeatureFlagSettings::FEATURE_FLAG_PRODUCT_PAGE_V2_MULTI_SHOP);
         }
 
         return [];
+    }
+
+    /**
+     * Validate the SSL configuration can be disabled if the SameSite Cookie
+     * is not settled to None
+     *
+     * @param array $configuration
+     *
+     * @return bool
+     */
+    protected function validateSameSiteConfiguration(array $configuration): bool
+    {
+        return (
+            $configuration['enable_ssl'] === false
+            || $configuration['enable_ssl_everywhere'] === false
+        )
+            && $this->configuration->get('PS_COOKIE_SAMESITE') === Cookie::SAMESITE_NONE;
     }
 
     /**

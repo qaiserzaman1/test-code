@@ -34,11 +34,14 @@ use Country;
 use Hook;
 use PrestaShop\PrestaShop\Adapter\Image\ImageRetriever;
 use PrestaShop\PrestaShop\Adapter\Presenter\PresenterInterface;
+use PrestaShop\PrestaShop\Adapter\Presenter\Product\ProductLazyArray;
+use PrestaShop\PrestaShop\Adapter\Presenter\Product\ProductListingLazyArray;
 use PrestaShop\PrestaShop\Adapter\Presenter\Product\ProductListingPresenter;
 use PrestaShop\PrestaShop\Adapter\Product\PriceFormatter;
 use PrestaShop\PrestaShop\Adapter\Product\ProductColorsRetriever;
 use PrestaShop\PrestaShop\Core\Product\ProductPresentationSettings;
 use Product;
+use ProductAssembler;
 use Symfony\Component\Translation\TranslatorInterface;
 use TaxConfiguration;
 use Tools;
@@ -70,6 +73,16 @@ class CartPresenter implements PresenterInterface
      */
     private $taxConfiguration;
 
+    /**
+     * @var ProductPresentationSettings
+     */
+    protected $settings;
+
+    /**
+     * @var ProductAssembler
+     */
+    protected $productAssembler;
+
     public function __construct()
     {
         $context = Context::getContext();
@@ -91,18 +104,12 @@ class CartPresenter implements PresenterInterface
     /**
      * @param array $rawProduct
      *
-     * @return \PrestaShop\PrestaShop\Adapter\Presenter\Product\ProductLazyArray|\PrestaShop\PrestaShop\Adapter\Presenter\Product\ProductListingLazyArray
+     * @return ProductLazyArray|ProductListingLazyArray
      */
     private function presentProduct(array $rawProduct)
     {
-        $settings = new ProductPresentationSettings();
-
-        $settings->catalog_mode = Configuration::isCatalogMode();
-        $settings->catalog_mode_with_prices = (int) Configuration::get('PS_CATALOG_MODE_WITH_PRICES');
-        $settings->include_taxes = $this->includeTaxes();
-        $settings->allow_add_variant_to_cart_from_listing = (int) Configuration::get('PS_ATTRIBUTE_CATEGORY_DISPLAY');
-        $settings->stock_management_enabled = Configuration::get('PS_STOCK_MANAGEMENT');
-        $settings->showPrices = Configuration::showPrices();
+        $assembledProduct = $this->getProductAssembler()->assembleProduct($rawProduct);
+        $rawProduct = array_merge($assembledProduct, $rawProduct);
 
         if (isset($rawProduct['attributes']) && is_string($rawProduct['attributes'])) {
             $rawProduct['attributes'] = $this->getAttributesArrayFromString($rawProduct['attributes']);
@@ -147,13 +154,11 @@ class CartPresenter implements PresenterInterface
         if ($this->includeTaxes()) {
             $rawProduct['price_amount'] = $rawProduct['price_wt'];
             $rawProduct['price'] = $this->priceFormatter->format($rawProduct['price_wt']);
+            $rawProduct['unit_price'] = $rawProduct['unit_price_tax_included'];
         } else {
             $rawProduct['price_amount'] = $rawProduct['price'];
             $rawProduct['price'] = $rawProduct['price_tax_exc'] = $this->priceFormatter->format($rawProduct['price']);
-        }
-
-        if ($rawProduct['price_amount'] && $rawProduct['unit_price_ratio'] > 0) {
-            $rawProduct['unit_price'] = $rawProduct['price_amount'] / $rawProduct['unit_price_ratio'];
+            $rawProduct['unit_price'] = $rawProduct['unit_price_tax_excluded'];
         }
 
         $rawProduct['total'] = $this->priceFormatter->format(
@@ -173,7 +178,7 @@ class CartPresenter implements PresenterInterface
         );
 
         return $presenter->present(
-            $settings,
+            $this->getSettings(),
             $rawProduct,
             Context::getContext()->language
         );
@@ -456,7 +461,7 @@ class CartPresenter implements PresenterInterface
             return !array_key_exists($discount['id_cart_rule'], $cartRulesIds);
         });
 
-        return [
+        $result = [
             'products' => $products,
             'totals' => $totals,
             'subtotals' => $subtotals,
@@ -480,6 +485,12 @@ class CartPresenter implements PresenterInterface
                 ) :
                 '',
         ];
+
+        Hook::exec('actionPresentCart',
+            ['presentedCart' => &$result]
+        );
+
+        return $result;
     }
 
     /**
@@ -509,12 +520,12 @@ class CartPresenter implements PresenterInterface
             $defaultCountry = null;
 
             if (isset(Context::getContext()->cookie->id_country)) {
-                $defaultCountry = new Country(Context::getContext()->cookie->id_country);
+                $defaultCountry = new Country((int) Context::getContext()->cookie->id_country);
             }
 
             $deliveryOptionList = $cart->getDeliveryOptionList($defaultCountry);
 
-            if (isset($deliveryOptionList) && count($deliveryOptionList) > 0) {
+            if (count($deliveryOptionList) > 0) {
                 foreach ($deliveryOptionList as $option) {
                     foreach ($option as $currentCarrier) {
                         if (isset($currentCarrier['is_free']) && $currentCarrier['is_free'] > 0) {
@@ -534,14 +545,16 @@ class CartPresenter implements PresenterInterface
         $cartVouchers = $cart->getCartRules();
         $vouchers = [];
 
-        $cartHasTax = null === $cart->id ? false : $cart::getTaxesAverageUsed($cart);
+        $cartHasTax = null === $cart->id ? false : $cart->getAverageProductsTaxRate() * 100;
         $freeShippingAlreadySet = false;
+        /** @var array{id_cart_rule:int, name: string, code: string, reduction_percent: float, reduction_currency: int, free_shipping: bool, reduction_tax: bool, reduction_amount:float, value_real:float|int|string, value_tax_exc:float|int|string} $cartVoucher */
         foreach ($cartVouchers as $cartVoucher) {
             $vouchers[$cartVoucher['id_cart_rule']]['id_cart_rule'] = $cartVoucher['id_cart_rule'];
             $vouchers[$cartVoucher['id_cart_rule']]['name'] = $cartVoucher['name'];
             $vouchers[$cartVoucher['id_cart_rule']]['code'] = $cartVoucher['code'];
             $vouchers[$cartVoucher['id_cart_rule']]['reduction_percent'] = $cartVoucher['reduction_percent'];
             $vouchers[$cartVoucher['id_cart_rule']]['reduction_currency'] = $cartVoucher['reduction_currency'];
+            $vouchers[$cartVoucher['id_cart_rule']]['free_shipping'] = (bool) $cartVoucher['free_shipping'];
 
             // Voucher reduction depending of the cart tax rule
             // if $cartHasTax & voucher is tax excluded, set amount voucher to tax included
@@ -557,9 +570,7 @@ class CartPresenter implements PresenterInterface
 
             $totalCartVoucherReduction = 0;
 
-            if (!$this->cartVoucherHasPercentReduction($cartVoucher)
-                && !$this->cartVoucherHasAmountReduction($cartVoucher)
-                && !$this->cartVoucherHasGiftProductReduction($cartVoucher)) {
+            if ($this->cartVoucherHasFreeShippingOnly($cartVoucher)) {
                 $freeShippingOnly = true;
                 if ($freeShippingAlreadySet) {
                     unset($vouchers[$cartVoucher['id_cart_rule']]);
@@ -605,17 +616,7 @@ class CartPresenter implements PresenterInterface
      *
      * @return bool
      */
-    private function cartVoucherHasFreeShipping($cartVoucher)
-    {
-        return !empty($cartVoucher['free_shipping']);
-    }
-
-    /**
-     * @param array $cartVoucher
-     *
-     * @return bool
-     */
-    private function cartVoucherHasPercentReduction($cartVoucher)
+    private function cartVoucherHasPercentReduction(array $cartVoucher): bool
     {
         return isset($cartVoucher['reduction_percent'])
             && $cartVoucher['reduction_percent'] > 0
@@ -627,7 +628,7 @@ class CartPresenter implements PresenterInterface
      *
      * @return bool
      */
-    private function cartVoucherHasAmountReduction($cartVoucher)
+    private function cartVoucherHasAmountReduction(array $cartVoucher): bool
     {
         return isset($cartVoucher['reduction_amount']) && $cartVoucher['reduction_amount'] > 0;
     }
@@ -637,9 +638,21 @@ class CartPresenter implements PresenterInterface
      *
      * @return bool
      */
-    private function cartVoucherHasGiftProductReduction($cartVoucher)
+    private function cartVoucherHasGiftProductReduction(array $cartVoucher): bool
     {
         return !empty($cartVoucher['gift_product']);
+    }
+
+    /**
+     * @param array $cartVoucher
+     *
+     * @return bool
+     */
+    private function cartVoucherHasFreeShippingOnly(array $cartVoucher): bool
+    {
+        return !$this->cartVoucherHasPercentReduction($cartVoucher)
+            && !$this->cartVoucherHasAmountReduction($cartVoucher)
+            && !$this->cartVoucherHasGiftProductReduction($cartVoucher);
     }
 
     /**
@@ -665,5 +678,32 @@ class CartPresenter implements PresenterInterface
         }
 
         return $attributesArray;
+    }
+
+    protected function getSettings(): ProductPresentationSettings
+    {
+        if ($this->settings === null) {
+            $this->settings = new ProductPresentationSettings();
+
+            $this->settings->catalog_mode = Configuration::isCatalogMode();
+            $this->settings->catalog_mode_with_prices = (int) Configuration::get('PS_CATALOG_MODE_WITH_PRICES');
+            $this->settings->include_taxes = $this->includeTaxes();
+            $this->settings->allow_add_variant_to_cart_from_listing = (int) Configuration::get('PS_ATTRIBUTE_CATEGORY_DISPLAY');
+            $this->settings->stock_management_enabled = Configuration::get('PS_STOCK_MANAGEMENT');
+            $this->settings->showPrices = Configuration::showPrices();
+            $this->settings->showLabelOOSListingPages = (bool) Configuration::get('PS_SHOW_LABEL_OOS_LISTING_PAGES');
+            $this->settings->lastRemainingItems = (int) Configuration::get('PS_LAST_QTIES');
+        }
+
+        return $this->settings;
+    }
+
+    protected function getProductAssembler(): ProductAssembler
+    {
+        if ($this->productAssembler === null) {
+            $this->productAssembler = new ProductAssembler(Context::getContext());
+        }
+
+        return $this->productAssembler;
     }
 }

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Copyright Prestashop -->
 <theme version="1.0" name="default-bootstrap" directory="default-bootstrap">
-    <author name="PrestaShop" email="contact@prestashop.com" url="http://www.prestashop.com"/>
+    <author name="PrestaShop" email="contact@prestashop.com" url="https://www.prestashop.com"/>
     <descriptions>
         <description iso="en"></description>
     </descriptions>
@@ -26,6 +26,7 @@
         <meta meta_page="address" left="0" right="0"/>
         <meta meta_page="addresses" left="0" right="0"/>
         <meta meta_page="authentication" left="0" right="0"/>
+        <meta meta_page="registration" left="0" right="0"/>
         <meta meta_page="cart" left="0" right="0"/>
         <meta meta_page="discount" left="0" right="0"/>
         <meta meta_page="history" left="0" right="0"/>

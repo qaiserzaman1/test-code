@@ -74,15 +74,15 @@ abstract class AbstractTypedCollection extends ArrayCollection
      * @param mixed $offset
      * @param mixed $value
      *
-     * @return bool|void
+     * @return void
      *
      * @throws TypeException
      */
-    public function offsetSet($offset, $value)
+    public function offsetSet($offset, $value): void
     {
         $this->checkElementType($value);
 
-        return parent::offsetSet($offset, $value);
+        parent::offsetSet($offset, $value);
     }
 
     /**

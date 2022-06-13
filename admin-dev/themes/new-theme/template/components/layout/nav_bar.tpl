@@ -24,12 +24,17 @@
  *}
 <nav class="nav-bar d-none d-print-none d-md-block">
   <span class="menu-collapse" data-toggle-url="{$toggle_navigation_url}">
-    <i class="material-icons">chevron_left</i>
-    <i class="material-icons">chevron_left</i>
+    <i class="material-icons rtl-flip">chevron_left</i>
+    <i class="material-icons rtl-flip">chevron_left</i>
   </span>
 
   <div class="nav-bar-overflow">
-    <ul class="main-menu">
+      <div class="logo-container">
+          <a id="header_logo" class="logo float-left" href="{$default_tab_link|escape:'html':'UTF-8'}"></a>
+          <span id="shop_version" class="header-version">{$ps_version}</span>
+      </div>
+
+      <ul class="main-menu{if $collapse_menu} sidebar-closed{/if}">
       {foreach $tabs as $level1}
         {if $level1.active}
 
@@ -45,7 +50,7 @@
 
           {if $level1.icon != ''}
 
-            <li class="link-levelone {if $level1.current}-active{/if}" data-submenu="{$level1.id_tab}" id="tab-{$level1.class_name}">
+            <li class="link-levelone{if $level1.current} link-levelone-active{/if}" data-submenu="{$level1.id_tab}" id="tab-{$level1.class_name}">
               <a href="{$level1Href}" class="link" >
                 <i class="material-icons">{$level1.icon}</i> <span>{$level1Name}</span>
               </a>
@@ -53,7 +58,7 @@
 
           {else}
 
-            <li class="category-title {if $level1.current}-active{/if}" data-submenu="{$level1.id_tab}" id="tab-{$level1.class_name}">
+            <li class="category-title{if $level1.current} link-active{/if}" data-submenu="{$level1.id_tab}" id="tab-{$level1.class_name}">
                 <span class="title">{$level1Name}</span>
             </li>
 
@@ -69,9 +74,9 @@
                   {assign var="levelOneClass" value=''}
 
                   {if $level2.current and not $collapse_menu}
-                      {assign var="levelOneClass" value=" -active open ul-open"}
+                      {assign var="levelOneClass" value=" link-active open ul-open"}
                   {elseif $level2.current and $collapse_menu}
-                      {assign var="levelOneClass" value=" -active"}
+                      {assign var="levelOneClass" value=" link-active"}
                   {/if}
 
                   <li class="link-levelone{if $level2.sub_tabs|@count} has_submenu{/if}{$levelOneClass}" data-submenu="{$level2.id_tab}" id="subtab-{$level2.class_name}">
@@ -102,7 +107,7 @@
                                 {$level3Name = $level3.class_name|escape:'html':'UTF-8'}
                               {/if}
 
-                              <li class="link-leveltwo {if $level3.current}-active{/if}" data-submenu="{$level3.id_tab}" id="subtab-{$level3.class_name}">
+                              <li class="link-leveltwo{if $level3.current} link-active{/if}" data-submenu="{$level3.id_tab}" id="subtab-{$level3.class_name}">
                                 <a href="{$level3Href}" class="link"> {$level3Name}
                                 </a>
                               </li>

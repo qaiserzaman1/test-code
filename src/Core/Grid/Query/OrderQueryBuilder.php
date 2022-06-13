@@ -116,13 +116,8 @@ final class OrderQueryBuilder implements DoctrineQueryBuilderInterface
     public function getCountQueryBuilder(SearchCriteriaInterface $searchCriteria)
     {
         $qb = $this->getBaseQueryBuilder($searchCriteria->getFilters());
-        if (isset($searchCriteria->getFilters()['new'])) {
-            $this->addNewCustomerField($qb->addSelect('o.id_order as o_id_order'));
-            $qb = $this->applyNewCustomerFilter($qb, $searchCriteria->getFilters());
-            $qb->select('count(o_id_order)');
-        } else {
-            $qb->select('count(o.id_order)');
-        }
+        $qb = $this->applyNewCustomerFilter($qb, $searchCriteria->getFilters());
+        $qb->select('count(o.id_order)');
 
         return $qb;
     }
@@ -174,8 +169,6 @@ final class OrderQueryBuilder implements DoctrineQueryBuilderInterface
             'customer' => $this->getCustomerField(),
         ];
 
-        $havingLikeComparisonFilters = [];
-
         $dateComparisonFilters = [
             'date_add' => 'o.`date_add`',
         ];
@@ -194,15 +187,6 @@ final class OrderQueryBuilder implements DoctrineQueryBuilderInterface
                 $alias = $likeComparisonFilters[$filterName];
 
                 $qb->andWhere("$alias LIKE :$filterName");
-                $qb->setParameter($filterName, '%' . $filterValue . '%');
-
-                continue;
-            }
-
-            if (isset($havingLikeComparisonFilters[$filterName])) {
-                $alias = $havingLikeComparisonFilters[$filterName];
-
-                $qb->andHaving("$alias LIKE :$filterName");
                 $qb->setParameter($filterName, '%' . $filterValue . '%');
 
                 continue;
@@ -233,20 +217,27 @@ final class OrderQueryBuilder implements DoctrineQueryBuilderInterface
     }
 
     /**
-     * @param QueryBuilder $qb
+     * Returns the subquery defining if a customer is new or not
      */
-    private function addNewCustomerField(QueryBuilder $qb)
+    private function getNewCustomerSubSelect(): string
     {
-        $newCustomerSubSelect = $this->connection
+        return $this->connection
             ->createQueryBuilder()
-            ->select('so.id_order')
+            ->select('IF(count(so.id_order) > 0, 0, 1)')
             ->from($this->dbPrefix . 'orders', 'so')
             ->where('so.id_customer = o.id_customer')
             ->andWhere('so.id_order < o.id_order')
             ->setMaxResults(1)
+            ->getSQL()
         ;
+    }
 
-        $qb->addSelect('IF ((' . $newCustomerSubSelect->getSQL() . ') > 0, 0, 1) AS new');
+    /**
+     * @param QueryBuilder $qb
+     */
+    private function addNewCustomerField(QueryBuilder $qb): void
+    {
+        $qb->addSelect('(' . $this->getNewCustomerSubSelect() . ') AS new');
     }
 
     /**
@@ -269,11 +260,8 @@ final class OrderQueryBuilder implements DoctrineQueryBuilderInterface
             return $qb;
         }
 
-        $builder = $this->connection
-            ->createQueryBuilder()
-            ->select('*')
-            ->from('(' . $qb->getSQL() . ') tmp_table')
-            ->andWhere('new = :new')
+        $builder = $qb
+            ->andWhere('(' . $this->getNewCustomerSubSelect() . ') = :new')
             ->setParameter('new', $filters['new'])
         ;
 

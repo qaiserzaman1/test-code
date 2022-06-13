@@ -64,7 +64,7 @@ class AdminStatusesControllerCore extends AdminController
     /**
      * init all variables to render the order status list.
      */
-    protected function initOrderStatutsList()
+    protected function initOrderStatusList(): void
     {
         $this->table = 'order_state';
         $this->className = 'OrderState';
@@ -122,6 +122,16 @@ class AdminStatusesControllerCore extends AdminController
                 'title' => $this->trans('Email template', [], 'Admin.Shopparameters.Feature'),
             ],
         ];
+    }
+
+    /**
+     * Init all variables to render the order status list.
+     *
+     * @deprecated Use `initOrderStatusList`
+     */
+    protected function initOrderStatutsList()
+    {
+        $this->initOrderStatusList();
     }
 
     /**
@@ -226,7 +236,7 @@ class AdminStatusesControllerCore extends AdminController
                 'icon' => 'icon-trash',
             ],
         ];
-        $this->initOrderStatutsList();
+        $this->initOrderStatusList();
         $lists = parent::renderList();
 
         //init and render the second list
@@ -675,7 +685,7 @@ class AdminStatusesControllerCore extends AdminController
     protected function filterToField($key, $filter)
     {
         if ($this->table == 'order_state') {
-            $this->initOrderStatutsList();
+            $this->initOrderStatusList();
         } elseif ($this->table == 'order_return_state') {
             $this->initOrdersReturnsList();
         }
@@ -687,8 +697,9 @@ class AdminStatusesControllerCore extends AdminController
     {
         parent::afterImageUpload();
 
-        if (($id_order_state = (int) Tools::getValue('id_order_state')) &&
-             isset($_FILES) && count($_FILES) && file_exists(_PS_ORDER_STATE_IMG_DIR_ . $id_order_state . '.gif')) {
+        if (($id_order_state = (int) Tools::getValue('id_order_state'))
+            && count($_FILES)
+            && file_exists(_PS_ORDER_STATE_IMG_DIR_ . $id_order_state . '.gif')) {
             $current_file = _PS_TMP_IMG_DIR_ . 'order_state_mini_' . $id_order_state . '_' . $this->context->shop->id . '.gif';
 
             if (file_exists($current_file)) {

@@ -26,8 +26,6 @@
 
 namespace PrestaShop\PrestaShop\Adapter\Order\Refund;
 
-use Address;
-use Carrier;
 use Currency;
 use Customer;
 use Customization;
@@ -35,14 +33,13 @@ use Group;
 use Order;
 use OrderDetail;
 use OrderSlip;
-use PrestaShop\Decimal\Number;
+use PrestaShop\Decimal\DecimalNumber;
 use PrestaShop\PrestaShop\Core\Domain\Order\Exception\InvalidCancelProductException;
 use PrestaShop\PrestaShop\Core\Domain\Order\ValueObject\OrderDetailRefund;
 use PrestaShop\PrestaShop\Core\Domain\Order\VoucherRefundType;
 use PrestaShop\PrestaShop\Core\Localization\CLDR\ComputingPrecision;
 use PrestaShopDatabaseException;
 use PrestaShopException;
-use TaxCalculator;
 use Tools;
 
 /**
@@ -54,9 +51,9 @@ class OrderRefundCalculator
     /**
      * @param Order $order
      * @param array $orderDetailRefunds
-     * @param Number $shippingRefund
+     * @param DecimalNumber $shippingRefund
      * @param int $voucherRefundType
-     * @param Number|null $chosenVoucherAmount
+     * @param DecimalNumber|null $chosenVoucherAmount
      *
      * @return OrderRefundSummary
      *
@@ -67,9 +64,9 @@ class OrderRefundCalculator
     public function computeOrderRefund(
         Order $order,
         array $orderDetailRefunds,
-        Number $shippingRefund,
+        DecimalNumber $shippingRefund,
         int $voucherRefundType,
-        ?Number $chosenVoucherAmount
+        ?DecimalNumber $chosenVoucherAmount
     ): OrderRefundSummary {
         $isTaxIncluded = $this->isTaxIncludedInOrder($order);
         $precision = $this->getPrecision($order);
@@ -82,33 +79,33 @@ class OrderRefundCalculator
             $precision
         );
 
-        $numberZero = new Number('0');
+        $numberZero = new DecimalNumber('0');
 
         $refundedAmount = $numberZero;
         foreach ($productRefunds as $orderDetailId => $productRefund) {
-            $refundedAmount = $refundedAmount->plus(new Number((string) $productRefund['amount']));
+            $refundedAmount = $refundedAmount->plus(new DecimalNumber((string) $productRefund['amount']));
         }
 
         $voucherChosen = false;
         $voucherAmount = $numberZero;
         if ($voucherRefundType === VoucherRefundType::PRODUCT_PRICES_EXCLUDING_VOUCHER_REFUND) {
-            $voucherAmount = new Number((string) $order->total_discounts);
+            $voucherAmount = new DecimalNumber((string) $order->total_discounts);
             $refundedAmount = $refundedAmount->minus($voucherAmount);
         } elseif ($voucherRefundType === VoucherRefundType::SPECIFIC_AMOUNT_REFUND) {
             $voucherChosen = true;
             $refundedAmount = $voucherAmount = $chosenVoucherAmount;
         }
 
-        $shippingCostAmount = $shippingRefund ?? $numberZero;
+        $shippingCostAmount = $shippingRefund;
         if ($shippingCostAmount->isPositive()) {
-            $shippingMaxRefund = new Number(
+            $shippingMaxRefund = new DecimalNumber(
                 $isTaxIncluded ?
                     (string) $order->total_shipping_tax_incl :
                     (string) $order->total_shipping_tax_excl
             );
 
             $shippingSlipResume = OrderSlip::getShippingSlipResume($order->id);
-            $shippingSlipTotalTaxIncl = new Number((string) ($shippingSlipResume['total_shipping_tax_incl'] ?? 0));
+            $shippingSlipTotalTaxIncl = new DecimalNumber((string) ($shippingSlipResume['total_shipping_tax_incl'] ?? 0));
             $shippingMaxRefund = $shippingMaxRefund->minus($shippingSlipTotalTaxIncl);
 
             if ($shippingCostAmount->isGreaterThan($shippingMaxRefund)) {
@@ -159,7 +156,6 @@ class OrderRefundCalculator
      * @param array $orderDetailRefunds
      * @param bool $isTaxIncluded
      * @param array $orderDetails
-     * @param TaxCalculator $taxCalculator
      * @param int $precision
      *
      * @return array
@@ -244,22 +240,6 @@ class OrderRefundCalculator
         $taxCalculationMethod = Group::getPriceDisplayMethod((int) $customer->id_default_group);
 
         return $taxCalculationMethod === PS_TAX_INC;
-    }
-
-    /**
-     * @param Order $order
-     *
-     * @return TaxCalculator
-     *
-     * @throws PrestaShopException
-     */
-    private function getCarrierTaxCalculatorFromOrder(Order $order): TaxCalculator
-    {
-        $carrier = new Carrier((int) $order->id_carrier);
-        // @todo: define if we use invoice or delivery address, or we use configuration PS_TAX_ADDRESS_TYPE
-        $address = Address::initialize($order->id_address_delivery, false);
-
-        return $carrier->getTaxCalculator($address);
     }
 
     /**

@@ -40,24 +40,6 @@ class DbPDOCore extends Db
     /**
      * Returns a new PDO object (database link).
      *
-     * @deprecated use getPDO
-     *
-     * @param string $host
-     * @param string $user
-     * @param string $password
-     * @param string $dbname
-     * @param int $timeout
-     *
-     * @return PDO
-     */
-    protected static function _getPDO($host, $user, $password, $dbname, $timeout = 5)
-    {
-        return static::getPDO($host, $user, $host, $dbname, $timeout);
-    }
-
-    /**
-     * Returns a new PDO object (database link).
-     *
      * @param string $host
      * @param string $user
      * @param string $password
@@ -107,7 +89,7 @@ class DbPDOCore extends Db
     public static function createDatabase($host, $user, $password, $dbname, $dropit = false)
     {
         try {
-            $link = DbPDO::getPDO($host, $user, $password, false);
+            $link = DbPDO::getPDO($host, $user, $password, '');
             $success = $link->exec('CREATE DATABASE `' . str_replace('`', '\\`', $dbname) . '`');
             if ($dropit && ($link->exec('DROP DATABASE `' . str_replace('`', '\\`', $dbname) . '`') !== false)) {
                 return true;
@@ -162,7 +144,11 @@ class DbPDOCore extends Db
      */
     protected function _query($sql)
     {
-        return $this->link->query($sql);
+        try {
+            return $this->link->query($sql);
+        } catch (\PDOException $exception) {
+            throw new PrestaShopException($exception->getMessage(), (int) $exception->getCode(), $exception);
+        }
     }
 
     /**
@@ -294,12 +280,16 @@ class DbPDOCore extends Db
      *
      * @see DbCore::_escape()
      *
-     * @param string $str
+     * @param string|null $str
      *
      * @return string
      */
     public function _escape($str)
     {
+        if (null === $str) {
+            return '';
+        }
+
         $search = ['\\', "\0", "\n", "\r", "\x1a", "'", '"'];
         $replace = ['\\\\', '\\0', '\\n', '\\r', "\Z", "\'", '\"'];
 
@@ -367,22 +357,71 @@ class DbPDOCore extends Db
             return false;
         }
 
-        if ($engine === null) {
-            $engine = 'MyISAM';
+        $enginesToTest = ['InnoDB', 'MyISAM'];
+        if ($engine !== null) {
+            $enginesToTest = [$engine];
         }
 
-        $result = $link->query('
-		CREATE TABLE `' . $prefix . 'test` (
-			`test` tinyint(1) unsigned NOT NULL
-		) ENGINE=' . $engine);
-        if (!$result) {
-            $error = $link->errorInfo();
+        foreach ($enginesToTest as $engineToTest) {
+            $result = $link->query('
+            CREATE TABLE `' . $prefix . 'test` (
+                `test` tinyint(1) unsigned NOT NULL
+            ) ENGINE=' . $engineToTest);
 
-            return $error[2];
+            if ($result) {
+                $link->query('DROP TABLE `' . $prefix . 'test`');
+
+                return true;
+            }
         }
-        $link->query('DROP TABLE `' . $prefix . 'test`');
 
-        return true;
+        $error = $link->errorInfo();
+
+        return $error[2];
+    }
+
+    /**
+     * Tries to connect to the database and select content (checking select privileges).
+     *
+     * @param string $server
+     * @param string $user
+     * @param string $pwd
+     * @param string $db
+     * @param string $prefix
+     * @param string|null $engine Table engine
+     *
+     * @return bool|string True, false or error
+     */
+    public static function checkSelectPrivilege($server, $user, $pwd, $db, $prefix, $engine = null)
+    {
+        try {
+            $link = DbPDO::getPDO($server, $user, $pwd, $db, 5);
+        } catch (PDOException $e) {
+            return false;
+        }
+
+        $enginesToTest = ['InnoDB', 'MyISAM'];
+        if ($engine !== null) {
+            $enginesToTest = [$engine];
+        }
+
+        foreach ($enginesToTest as $engineToTest) {
+            $link->query('CREATE TABLE `' . $prefix . 'test` (
+                `test` tinyint(1) unsigned NOT NULL
+            ) ENGINE=' . $engineToTest);
+
+            $result = $link->query('SELECT * FROM `' . $prefix . 'test`');
+
+            $link->query('DROP TABLE `' . $prefix . 'test`');
+
+            if ($result) {
+                return true;
+            }
+        }
+
+        $error = $link->errorInfo();
+
+        return $error[2];
     }
 
     /**
@@ -394,7 +433,7 @@ class DbPDOCore extends Db
      * @param string $user Login for database connection
      * @param string $pwd Password for database connection
      * @param string $db Database name
-     * @param bool $newDbLink
+     * @param bool $new_db_link
      * @param string|bool $engine
      * @param int $timeout
      *
@@ -464,7 +503,7 @@ class DbPDOCore extends Db
     public static function tryUTF8($server, $user, $pwd)
     {
         try {
-            $link = DbPDO::getPDO($server, $user, $pwd, false, 5);
+            $link = DbPDO::getPDO($server, $user, $pwd, '', 5);
         } catch (PDOException $e) {
             return false;
         }
@@ -472,28 +511,5 @@ class DbPDOCore extends Db
         unset($link);
 
         return ($result === false) ? false : true;
-    }
-
-    /**
-     * Checks if auto increment value and offset is 1.
-     *
-     * @param string $server
-     * @param string $user
-     * @param string $pwd
-     *
-     * @return bool
-     */
-    public static function checkAutoIncrement($server, $user, $pwd)
-    {
-        try {
-            $link = DbPDO::getPDO($server, $user, $pwd, false, 5);
-        } catch (PDOException $e) {
-            return false;
-        }
-        $ret = (bool) (($result = $link->query('SELECT @@auto_increment_increment as aii')) && ($row = $result->fetch()) && $row['aii'] == 1);
-        $ret &= (bool) (($result = $link->query('SELECT @@auto_increment_offset as aio')) && ($row = $result->fetch()) && $row['aio'] == 1);
-        unset($link);
-
-        return $ret;
     }
 }

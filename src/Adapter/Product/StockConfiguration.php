@@ -59,6 +59,9 @@ class StockConfiguration implements DataConfigurationInterface
             'delivery_time' => (array) $this->configuration->get('PS_LABEL_DELIVERY_TIME_AVAILABLE'),
             'oos_delivery_time' => (array) $this->configuration->get('PS_LABEL_DELIVERY_TIME_OOSBOA'),
             'pack_stock_management' => $this->configuration->get('PS_PACK_STOCK_TYPE'),
+            'oos_show_label_listing_pages' => $this->configuration->getBoolean('PS_SHOW_LABEL_OOS_LISTING_PAGES'),
+            'display_last_quantities' => $this->configuration->get('PS_LAST_QTIES'),
+            'display_unavailable_attributes' => $this->configuration->getBoolean('PS_DISP_UNAVAILABLE_ATTR'),
         ];
     }
 
@@ -78,6 +81,9 @@ class StockConfiguration implements DataConfigurationInterface
             $this->configuration->set('PS_LABEL_DELIVERY_TIME_AVAILABLE', $config['delivery_time']);
             $this->configuration->set('PS_LABEL_DELIVERY_TIME_OOSBOA', $config['oos_delivery_time']);
             $this->configuration->set('PS_PACK_STOCK_TYPE', $config['pack_stock_management']);
+            $this->configuration->set('PS_SHOW_LABEL_OOS_LISTING_PAGES', $config['oos_show_label_listing_pages']);
+            $this->configuration->set('PS_LAST_QTIES', (int) $config['display_last_quantities']);
+            $this->configuration->set('PS_DISP_UNAVAILABLE_ATTR', (int) $config['display_unavailable_attributes']);
         }
 
         return $errors;
@@ -98,6 +104,9 @@ class StockConfiguration implements DataConfigurationInterface
             'oos_delivery_time',
             'oos_denied_backorders',
             'pack_stock_management',
+            'oos_show_label_listing_pages',
+            'display_last_quantities',
+            'display_unavailable_attributes',
         ]);
 
         $resolver->resolve($configuration);

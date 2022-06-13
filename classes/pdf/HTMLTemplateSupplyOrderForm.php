@@ -29,19 +29,38 @@
  */
 class HTMLTemplateSupplyOrderFormCore extends HTMLTemplate
 {
+    /**
+     * @var SupplyOrder
+     */
     public $supply_order;
+
+    /**
+     * @var Warehouse
+     */
     public $warehouse;
+
+    /**
+     * @var Address
+     */
     public $address_warehouse;
+
+    /**
+     * @var Address
+     */
     public $address_supplier;
+
+    /**
+     * @var Context
+     */
     public $context;
 
     /**
      * @param SupplyOrder $supply_order
-     * @param $smarty
+     * @param Smarty $smarty
      *
      * @throws PrestaShopException
      */
-    public function __construct(SupplyOrder $supply_order, $smarty)
+    public function __construct(SupplyOrder $supply_order, Smarty $smarty)
     {
         $this->supply_order = $supply_order;
         $this->smarty = $smarty;
@@ -55,15 +74,15 @@ class HTMLTemplateSupplyOrderFormCore extends HTMLTemplate
 
         $this->title = Context::getContext()->getTranslator()->trans('Supply order form', [], 'Shop.Pdf');
 
-        $this->shop = new Shop((int) $this->order->id_shop);
+        $this->shop = Context::getContext()->shop;
     }
 
     /**
-     * @see HTMLTemplate::getContent()
+     * {@inheritdoc}
      */
     public function getContent()
     {
-        $supply_order_details = $this->supply_order->getEntriesCollection((int) $this->supply_order->id_lang);
+        $supply_order_details = $this->supply_order->getEntriesCollection();
         $this->roundSupplyOrderDetails($supply_order_details);
 
         $this->roundSupplyOrder($this->supply_order);
@@ -112,7 +131,7 @@ class HTMLTemplateSupplyOrderFormCore extends HTMLTemplate
     }
 
     /**
-     * @see HTMLTemplate::getBulkFilename()
+     * {@inheritdoc}
      */
     public function getBulkFilename()
     {
@@ -120,7 +139,7 @@ class HTMLTemplateSupplyOrderFormCore extends HTMLTemplate
     }
 
     /**
-     * @see HTMLTemplate::getFileName()
+     * {@inheritdoc}
      */
     public function getFilename()
     {
@@ -130,7 +149,7 @@ class HTMLTemplateSupplyOrderFormCore extends HTMLTemplate
     /**
      * Get order taxes summary.
      *
-     * @return array|false|mysqli_result|PDOStatement|resource|null
+     * @return array
      *
      * @throws PrestaShopDatabaseException
      */
@@ -148,19 +167,19 @@ class HTMLTemplateSupplyOrderFormCore extends HTMLTemplate
 
         $results = Db::getInstance(_PS_USE_SQL_SLAVE_)->executeS($query);
 
+        /** @var array{base_te: float, tax_rate: float, total_tax_value: float} $result */
         foreach ($results as &$result) {
             $result['base_te'] = Tools::ps_round($result['base_te'], 2);
             $result['tax_rate'] = Tools::ps_round($result['tax_rate'], 2);
             $result['total_tax_value'] = Tools::ps_round($result['total_tax_value'], 2);
         }
-
-        unset($result); // remove reference
+        unset($result);
 
         return $results;
     }
 
     /**
-     * @see HTMLTemplate::getHeader()
+     * {@inheritdoc}
      */
     public function getHeader()
     {
@@ -188,11 +207,10 @@ class HTMLTemplateSupplyOrderFormCore extends HTMLTemplate
     }
 
     /**
-     * @see HTMLTemplate::getFooter()
+     * {@inheritdoc}
      */
     public function getFooter()
     {
-        $this->address = $this->address_warehouse;
         $free_text = [];
         $free_text[] = Context::getContext()->getTranslator()->trans('TE: Tax excluded', [], 'Shop.Pdf');
         $free_text[] = Context::getContext()->getTranslator()->trans('TI: Tax included', [], 'Shop.Pdf');

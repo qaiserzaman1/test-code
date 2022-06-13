@@ -1,10 +1,13 @@
 require('module-alias/register');
 
-// Helpers to open and close browser
+const {expect} = require('chai');
+
+// Import utils
 const helper = require('@utils/helpers');
+const basicHelper = require('@utils/basicHelper');
 
 // Common tests login BO
-const loginCommon = require('@commonTests/loginBO');
+const loginCommon = require('@commonTests/BO/loginBO');
 
 // Import pages
 const dashboardPage = require('@pages/BO/dashboard');
@@ -16,9 +19,6 @@ const testContext = require('@utils/testContext');
 
 const baseContext = 'functional_BO_international_locations_states_sortAndPagination';
 
-// Using chai
-const {expect} = require('chai');
-
 let browserContext;
 let page;
 
@@ -26,7 +26,7 @@ let page;
 Sort states table
 Paginate between pages
  */
-describe('Sort and pagination states table', async () => {
+describe('BO - International - States : Sort and pagination', async () => {
   // before and after functions
   before(async function () {
     browserContext = await helper.createBrowserContext(this.browser);
@@ -41,7 +41,7 @@ describe('Sort and pagination states table', async () => {
     await loginCommon.loginBO(this, page);
   });
 
-  it('should go to \'Locations\' page', async function () {
+  it('should go to \'International > Locations\' page', async function () {
     await testContext.addContextItem(this, 'testIdentifier', 'goToLocationsPage', baseContext);
 
     await dashboardPage.goToSubMenu(
@@ -164,7 +164,7 @@ describe('Sort and pagination states table', async () => {
           sortedTable = await sortedTable.map(text => parseFloat(text));
         }
 
-        const expectedResult = await statesPage.sortArray(nonSortedTable, test.args.isFloat);
+        const expectedResult = await basicHelper.sortArray(nonSortedTable, test.args.isFloat);
 
         if (test.args.sortDirection === 'up') {
           await expect(sortedTable).to.deep.equal(expectedResult);

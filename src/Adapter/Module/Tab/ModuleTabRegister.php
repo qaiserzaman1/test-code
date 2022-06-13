@@ -27,11 +27,11 @@
 namespace PrestaShop\PrestaShop\Adapter\Module\Tab;
 
 use Exception;
-use PrestaShop\PrestaShop\Adapter\Module\Module;
+use PrestaShop\PrestaShop\Core\Module\ModuleInterface;
 use PrestaShopBundle\Entity\Repository\LangRepository;
 use PrestaShopBundle\Entity\Repository\TabRepository;
 use Psr\Log\LoggerInterface;
-use Symfony\Component\Config\Loader\LoaderInterface;
+use Symfony\Component\Config\Loader\Loader;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
@@ -44,7 +44,7 @@ use TabCore as Tab;
  */
 class ModuleTabRegister
 {
-    const SUFFIX = '_MTR';
+    public const SUFFIX = '_MTR';
 
     /**
      * @var string
@@ -82,7 +82,7 @@ class ModuleTabRegister
     private $languages;
 
     /**
-     * @var LoaderInterface
+     * @var Loader
      */
     private $routingConfigLoader;
 
@@ -93,7 +93,7 @@ class ModuleTabRegister
      * @param TranslatorInterface $translator
      * @param Filesystem $filesystem
      * @param array $languages
-     * @param LoaderInterface $routingConfigLoader
+     * @param Loader $routingConfigLoader
      */
     public function __construct(
         TabRepository $tabRepository,
@@ -102,7 +102,7 @@ class ModuleTabRegister
         TranslatorInterface $translator,
         Filesystem $filesystem,
         array $languages,
-        LoaderInterface $routingConfigLoader
+        Loader $routingConfigLoader
     ) {
         $this->langRepository = $langRepository;
         $this->tabRepository = $tabRepository;
@@ -118,9 +118,9 @@ class ModuleTabRegister
      *
      * This is done automatically as part of the module installation.
      *
-     * @param Module $module
+     * @param ModuleInterface $module
      */
-    public function registerTabs(Module $module)
+    public function registerTabs(ModuleInterface $module)
     {
         if (!$module->getInstance()) {
             return;
@@ -137,9 +137,9 @@ class ModuleTabRegister
     }
 
     /**
-     * @param Module $module
+     * @param ModuleInterface $module
      */
-    public function enableTabs(Module $module)
+    public function enableTabs(ModuleInterface $module)
     {
         $this->tabRepository->changeEnabledByModuleName($module->get('name'), true);
     }
@@ -197,10 +197,8 @@ class ModuleTabRegister
         $legacyControllers = array_map(function ($legacyControllersFilename) {
             return str_replace('Controller.php', '', $legacyControllersFilename);
         }, $legacyControllersFilenames);
-        $legacyControllers = $legacyControllers ?? [];
 
         $routingControllers = $this->getModuleControllersFromRouting($moduleName);
-        $routingControllers = $routingControllers ?? [];
 
         return array_merge($legacyControllers, $routingControllers);
     }
@@ -258,11 +256,11 @@ class ModuleTabRegister
         }
 
         $moduleFolder = Finder::create()->files()
-                    ->in($modulePath)
-                    ->depth('== 0')
-                    ->name('*Controller.php')
-                    ->exclude(['index.php'])
-                    ->contains('/Controller\s+extends\s+/i');
+            ->in($modulePath)
+            ->depth('== 0')
+            ->name('*Controller.php')
+            ->exclude(['index.php'])
+            ->contains('/Controller\s+extends\s+/i');
 
         return iterator_to_array($moduleFolder);
     }
@@ -343,12 +341,12 @@ class ModuleTabRegister
     /**
      * Install a tab according to its defined structure.
      *
-     * @param Module $module
+     * @param ModuleInterface $module
      * @param ParameterBag $tabDetails the structure of the tab
      *
      * @throws Exception in case of error from validation or save
      */
-    protected function registerTab(Module $module, ParameterBag $tabDetails)
+    protected function registerTab(ModuleInterface $module, ParameterBag $tabDetails)
     {
         $this->checkIsValid($module->get('name'), $tabDetails);
 
@@ -367,6 +365,8 @@ class ModuleTabRegister
         $tab->name = $this->getTabNames($tabDetails->get('name', $tab->class_name));
         $tab->icon = $tabDetails->get('icon');
         $tab->id_parent = $this->findParentId($tabDetails);
+        $tab->wording = $tabDetails->get('wording');
+        $tab->wording_domain = $tabDetails->get('wording_domain');
 
         if (!$tab->save()) {
             throw new Exception($this->translator->trans('Failed to install admin tab "%name%".', ['%name%' => $tab->name], 'Admin.Modules.Notification'));

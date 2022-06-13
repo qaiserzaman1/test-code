@@ -25,5 +25,10 @@
  */
 interface ChecksumInterface
 {
+    /**
+     * @param object $object Checksum target
+     *
+     * @return string
+     */
     public function generateChecksum($object);
 }

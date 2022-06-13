@@ -34,9 +34,9 @@ use PrestaShop\PrestaShop\Core\Domain\Webservice\Exception\WebserviceConstraintE
 class Key
 {
     /**
-     * @var string Required length of webservice key
+     * @var int Required length of webservice key
      */
-    const LENGTH = 32;
+    public const LENGTH = 32;
 
     /**
      * @var string

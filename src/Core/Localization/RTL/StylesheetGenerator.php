@@ -46,17 +46,17 @@ class StylesheetGenerator
     /**
      * Default file type to look up.
      */
-    const DEFAULT_FILE_TYPE = 'css';
+    public const DEFAULT_FILE_TYPE = 'css';
 
     /**
      * Default suffix to use for RTL transformed files.
      */
-    const DEFAULT_RTL_SUFFIX = '_rtl';
+    public const DEFAULT_RTL_SUFFIX = '_rtl';
 
     /**
      * Extension of RTL fix files.
      */
-    const RTLFIX_EXTENSION = 'rtlfix';
+    public const RTLFIX_EXTENSION = 'rtlfix';
 
     /**
      * @var string
@@ -109,6 +109,8 @@ class StylesheetGenerator
     {
         return
             strpos($file, '/node_modules/') === false
+            // rtl.css contains RTL override rules
+            && strpos($file, 'rtl.css') === false
             // does not end with .rtlfix
             && substr(rtrim($file, '.' . $this->fileType), -4) !== $this->rtlSuffix
             // RTL file does not exist or we are regenerating them

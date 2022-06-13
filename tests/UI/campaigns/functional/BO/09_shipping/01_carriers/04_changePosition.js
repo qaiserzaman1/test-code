@@ -1,33 +1,32 @@
 require('module-alias/register');
 
-// Helpers to open and close browser
+// Import expect from chai
+const {expect} = require('chai');
+
+// Import utils
 const helper = require('@utils/helpers');
+const basicHelper = require('@utils/basicHelper');
+const testContext = require('@utils/testContext');
 
 // Common tests login BO
-const loginCommon = require('@commonTests/loginBO');
+const loginCommon = require('@commonTests/BO/loginBO');
 
 // Import pages
 const dashboardPage = require('@pages/BO/dashboard');
 const carriersPage = require('@pages/BO/shipping/carriers');
 
-// Import test context
-const testContext = require('@utils/testContext');
-
 const baseContext = 'functional_BO_shipping_carriers_changePosition';
-
-// Import expect from chai
-const {expect} = require('chai');
 
 // Browser and tab
 let browserContext;
 let page;
 
 /*
-Go To carriers page
+Go to carriers page
 Change first carrier position to 3
 Reset carrier position
  */
-describe('Change carrier position', async () => {
+describe('BO - Shipping - Carriers : Change carrier position', async () => {
   // before and after functions
   before(async function () {
     browserContext = await helper.createBrowserContext(this.browser);
@@ -42,7 +41,7 @@ describe('Change carrier position', async () => {
     await loginCommon.loginBO(this, page);
   });
 
-  it('should go to carriers page', async function () {
+  it('should go to \'Shipping > Carriers\' page', async function () {
     await testContext.addContextItem(this, 'testIdentifier', 'goToCarriersPage', baseContext);
 
     await dashboardPage.goToSubMenu(
@@ -76,7 +75,7 @@ describe('Change carrier position', async () => {
       nonSortedTable = await nonSortedTable.map(text => parseFloat(text));
       sortedTable = await sortedTable.map(text => parseFloat(text));
 
-      const expectedResult = await carriersPage.sortArray(nonSortedTable, true);
+      const expectedResult = await basicHelper.sortArray(nonSortedTable, true);
 
       await expect(sortedTable).to.deep.equal(expectedResult);
     });

@@ -26,37 +26,18 @@
 
 namespace PrestaShopBundle\Form\Admin\Improve\International\Currencies;
 
-use PrestaShopBundle\Form\Admin\Type\SwitchType;
-use Symfony\Component\Form\AbstractType;
+use PrestaShopBundle\Form\Admin\Type\CommonAbstractType;
 use Symfony\Component\Form\FormBuilderInterface;
 
 /**
  * Class CurrencyExchangeRateType
  */
-class CurrencyExchangeRateType extends AbstractType
+class CurrencyExchangeRateType extends CommonAbstractType
 {
-    /**
-     * @var bool
-     */
-    private $isCronModuleInstalled;
-
-    /**
-     * @param bool $isCronModuleInstalled
-     */
-    public function __construct($isCronModuleInstalled)
-    {
-        $this->isCronModuleInstalled = $isCronModuleInstalled;
-    }
-
     /**
      * {@inheritdoc}
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        $builder
-            ->add('live_exchange_rate', SwitchType::class, [
-                'disabled' => !$this->isCronModuleInstalled,
-            ])
-        ;
     }
 }

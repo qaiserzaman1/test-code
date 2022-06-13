@@ -1,7 +1,16 @@
 require('module-alias/register');
 const FOBasePage = require('@pages/FO/FObasePage');
 
+/**
+ * Search page, contains functions that can be used on the page
+ * @class
+ * @extends FOBasePage
+ */
 class SearchResults extends FOBasePage {
+  /**
+   * @constructs
+   * Setting up texts and selectors to use on search page
+   */
   constructor() {
     super();
     this.pageTitle = 'Search';
@@ -23,7 +32,7 @@ class SearchResults extends FOBasePage {
   // Methods
   /**
    * Get search product results number
-   * @param page
+   * @param page {Page} Browser tab
    * @returns {Promise<number>}
    */
   getSearchResultsNumber(page) {
@@ -32,8 +41,8 @@ class SearchResults extends FOBasePage {
 
   /**
    * Go to the product page
-   * @param page
-   * @param id, product id
+   * @param page {Page} Browser tab
+   * @param id {number} Index of product on the list
    * @returns {Promise<void>}
    */
   async goToProductPage(page, id) {
@@ -42,8 +51,8 @@ class SearchResults extends FOBasePage {
 
   /**
    * Click on Quick view Product
-   * @param page
-   * @param id, index of product in list of products
+   * @param page {Page} Browser tab
+   * @param id {number} Index of product on the list
    * @return {Promise<void>}
    */
   async quickViewProduct(page, id) {
@@ -70,8 +79,8 @@ class SearchResults extends FOBasePage {
 
   /**
    * Select thumb image
-   * @param page
-   * @param position
+   * @param page {Page} Browser tab
+   * @param position {number} Position of the image
    * @returns {Promise<string>}
    */
   async selectThumbImage(page, position) {

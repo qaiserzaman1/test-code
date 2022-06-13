@@ -24,13 +24,18 @@
  * @license   https://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
  */
 use PrestaShop\PrestaShop\Adapter\Image\ImageRetriever;
+use PrestaShop\PrestaShop\Adapter\Presenter\Order\OrderReturnLazyArray;
 use PrestaShop\PrestaShop\Adapter\Presenter\Order\OrderReturnPresenter;
 
 class OrderReturnControllerCore extends FrontController
 {
+    /** @var bool */
     public $auth = true;
+    /** @var string */
     public $php_self = 'order-return';
+    /** @var string */
     public $authRedirection = 'order-follow';
+    /** @var bool */
     public $ssl = true;
 
     /**
@@ -44,7 +49,7 @@ class OrderReturnControllerCore extends FrontController
 
         $id_order_return = (int) Tools::getValue('id_order_return');
 
-        if (!isset($id_order_return) || !Validate::isUnsignedId($id_order_return)) {
+        if (!Validate::isUnsignedId($id_order_return)) {
             $this->redirect_after = '404';
             $this->redirect();
         } else {
@@ -94,6 +99,10 @@ class OrderReturnControllerCore extends FrontController
             if ($orderReturn->id_order == $return['id_order']) {
                 break;
             }
+        }
+
+        if (!isset($return)) {
+            return [];
         }
 
         $orderReturnPresenter = new OrderReturnPresenter(
@@ -175,6 +184,17 @@ class OrderReturnControllerCore extends FrontController
             $breadcrumb['links'][] = [
                 'title' => $this->trans('Merchandise returns', [], 'Shop.Theme.Global'),
                 'url' => $this->context->link->getPageLink('order-follow'),
+            ];
+
+            $prefix = Configuration::get('PS_RETURN_PREFIX', $this->context->language->id);
+            $orderReturn = new OrderReturn($id_order_return);
+            $orderReturn->id_order_return = $id_order_return;
+            $orderReturnLazyArray = new OrderReturnLazyArray($prefix, $this->context->link, (array) $orderReturn);
+            $orderReturnNumber = $orderReturnLazyArray->getReturnNumber();
+
+            $breadcrumb['links'][] = [
+                'title' => $orderReturnNumber,
+                'url' => '#',
             ];
         }
 

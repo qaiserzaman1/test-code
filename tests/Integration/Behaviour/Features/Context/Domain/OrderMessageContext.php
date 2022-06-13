@@ -66,7 +66,6 @@ class OrderMessageContext extends AbstractDomainFeatureContext
 
         /* @var OrderMessageId $orderMessageId */
         try {
-            $this->lastException = null;
             $orderMessageId = $this->getCommandBus()->handle(
                 new AddOrderMessageCommand(
                     $properties['name'],
@@ -76,7 +75,7 @@ class OrderMessageContext extends AbstractDomainFeatureContext
 
             $this->getSharedStorage()->set($reference, new OrderMessage($orderMessageId->getValue()));
         } catch (OrderMessageNameAlreadyUsedException $exception) {
-            $this->lastException = $exception;
+            $this->setLastException($exception);
         }
     }
 
@@ -93,7 +92,6 @@ class OrderMessageContext extends AbstractDomainFeatureContext
         $orderMessage = $this->getSharedStorage()->get($reference);
 
         try {
-            $this->lastException = null;
             $this->getCommandBus()->handle(
                 new EditOrderMessageCommand(
                     (int) $orderMessage->id,
@@ -102,7 +100,7 @@ class OrderMessageContext extends AbstractDomainFeatureContext
                 )
             );
         } catch (OrderMessageNameAlreadyUsedException $exception) {
-            $this->lastException = $exception;
+            $this->setLastException($exception);
         }
     }
 

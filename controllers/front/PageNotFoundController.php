@@ -25,8 +25,11 @@
  */
 class PageNotFoundControllerCore extends FrontController
 {
+    /** @var string */
     public $php_self = 'pagenotfound';
+    /** @var string */
     public $page_name = 'pagenotfound';
+    /** @var bool */
     public $ssl = true;
 
     /**
@@ -59,5 +62,11 @@ class PageNotFoundControllerCore extends FrontController
         $page['title'] = $this->trans('The page you are looking for was not found.', [], 'Shop.Theme.Global');
 
         return $page;
+    }
+
+    public function displayAjax()
+    {
+        header('Content-Type: application/json');
+        echo json_encode($this->trans('The page you are looking for was not found.', [], 'Shop.Theme.Global'));
     }
 }

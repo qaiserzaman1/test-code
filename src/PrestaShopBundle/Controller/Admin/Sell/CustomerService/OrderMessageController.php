@@ -27,6 +27,7 @@
 namespace PrestaShopBundle\Controller\Admin\Sell\CustomerService;
 
 use Exception;
+use Language;
 use PrestaShop\PrestaShop\Core\Domain\OrderMessage\Command\BulkDeleteOrderMessageCommand;
 use PrestaShop\PrestaShop\Core\Domain\OrderMessage\Command\DeleteOrderMessageCommand;
 use PrestaShop\PrestaShop\Core\Domain\OrderMessage\Exception\OrderMessageException;
@@ -49,7 +50,7 @@ class OrderMessageController extends FrameworkBundleAdminController
     /**
      * Show list of Order messages
      *
-     * @AdminSecurity("is_granted(['read'], request.get('_legacy_controller'))")
+     * @AdminSecurity("is_granted('read', request.get('_legacy_controller'))")
      *
      * @param OrderMessageFilters $filters
      * @param Request $request
@@ -80,7 +81,7 @@ class OrderMessageController extends FrameworkBundleAdminController
      * Create new order message
      *
      * @AdminSecurity(
-     *     "is_granted(['create'], request.get('_legacy_controller'))",
+     *     "is_granted('create', request.get('_legacy_controller'))",
      *     redirectRoute="admin_order_messages_index"
      * )
      *
@@ -105,7 +106,7 @@ class OrderMessageController extends FrameworkBundleAdminController
                 return $this->redirectToRoute('admin_order_messages_index');
             }
         } catch (Exception $e) {
-            $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages()));
+            $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages($e)));
         }
 
         return $this->render('@PrestaShop/Admin/Sell/CustomerService/OrderMessage/create.html.twig', [
@@ -113,6 +114,11 @@ class OrderMessageController extends FrameworkBundleAdminController
             'enableSidebar' => true,
             'layoutTitle' => $this->trans('Add new', 'Admin.Actions'),
             'orderMessageForm' => $form->createView(),
+            'multistoreInfoTip' => $this->trans(
+                'Note that this feature is available in all shops context only. It will be added to all your stores.',
+                'Admin.Notifications.Info'
+            ),
+            'multistoreIsUsed' => $this->get('prestashop.adapter.multistore_feature')->isUsed(),
         ]);
     }
 
@@ -120,7 +126,7 @@ class OrderMessageController extends FrameworkBundleAdminController
      * Edit existing order message
      *
      * @AdminSecurity(
-     *     "is_granted(['update'], request.get('_legacy_controller'))",
+     *     "is_granted('update', request.get('_legacy_controller'))",
      *     redirectRoute="admin_order_messages_index"
      * )
      *
@@ -151,10 +157,10 @@ class OrderMessageController extends FrameworkBundleAdminController
                 return $this->redirectToRoute('admin_order_messages_index');
             }
         } catch (Exception $e) {
-            $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages()));
+            $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages($e)));
         }
 
-        if (!isset($form) || !isset($orderMessageName)) {
+        if (!isset($form)) {
             return $this->redirectToRoute('admin_order_messages_index');
         }
 
@@ -170,7 +176,7 @@ class OrderMessageController extends FrameworkBundleAdminController
      * Delete single order message
      *
      * @AdminSecurity(
-     *     "is_granted(['delete'], request.get('_legacy_controller'))",
+     *     "is_granted('delete', request.get('_legacy_controller'))",
      *     redirectRoute="admin_order_messages_index"
      * )
      *
@@ -185,7 +191,7 @@ class OrderMessageController extends FrameworkBundleAdminController
 
             $this->addFlash('success', $this->trans('Successful deletion.', 'Admin.Notifications.Success'));
         } catch (Exception $e) {
-            $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages()));
+            $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages($e)));
         }
 
         return $this->redirectToRoute('admin_order_messages_index');
@@ -195,7 +201,7 @@ class OrderMessageController extends FrameworkBundleAdminController
      * Delete order messages in bulk action
      *
      * @AdminSecurity(
-     *     "is_granted(['delete'], request.get('_legacy_controller'))",
+     *     "is_granted('delete', request.get('_legacy_controller'))",
      *     redirectRoute="admin_order_messages_index"
      * )
      *
@@ -217,7 +223,7 @@ class OrderMessageController extends FrameworkBundleAdminController
                 $this->trans('The selection has been successfully deleted.', 'Admin.Notifications.Success')
             );
         } catch (Exception $e) {
-            $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages()));
+            $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages($e)));
         }
 
         return $this->redirectToRoute('admin_order_messages_index');
@@ -226,10 +232,14 @@ class OrderMessageController extends FrameworkBundleAdminController
     /**
      * Get user friendly errors for exception
      *
+     * @param Exception|null $e
+     *
      * @return array
      */
-    private function getErrorMessages(): array
+    private function getErrorMessages(Exception $e = null): array
     {
+        $language = $e instanceof OrderMessageNameAlreadyUsedException ? (new Language($e->getLangId()))->name : '';
+
         return [
             OrderMessageException::class => [
                 OrderMessageException::FAILED_DELETE => $this->trans(
@@ -246,8 +256,11 @@ class OrderMessageController extends FrameworkBundleAdminController
                 'Admin.Notifications.Error'
             ),
             OrderMessageNameAlreadyUsedException::class => $this->trans(
-                'This name already exists.',
-                'Admin.Design.Notification'
+                'An order message with the same name already exists in %s.',
+                'Admin.Orderscustomers.Notification',
+                [
+                    $language,
+                ]
             ),
         ];
     }

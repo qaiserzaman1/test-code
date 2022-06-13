@@ -23,5 +23,12 @@
  * @license   https://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
  *-->
 <template>
-  <div class="ps-spinner"></div>
+  <div class="ps-spinner" />
 </template>
+
+<script lang="ts">
+  import Vue from 'vue';
+
+  export default Vue.extend({
+  });
+</script>

@@ -55,11 +55,10 @@ final class AddRootCategoryHandler extends AbstractObjectModelHandler implements
 
     /**
      * {@inheritdoc}
-     *
-     * @throws CannotAddCategoryException
      */
     public function handle(AddRootCategoryCommand $command)
     {
+        /** @var Category $category */
         $category = $this->createRootCategoryFromCommand($command);
 
         return new CategoryId((int) $category->id);
@@ -71,6 +70,9 @@ final class AddRootCategoryHandler extends AbstractObjectModelHandler implements
      * @param AddRootCategoryCommand $command
      *
      * @return Category
+     *
+     * @throws CannotAddCategoryException
+     * @throws CategoryException
      */
     private function createRootCategoryFromCommand(AddRootCategoryCommand $command)
     {
@@ -84,6 +86,10 @@ final class AddRootCategoryHandler extends AbstractObjectModelHandler implements
 
         if (null !== $command->getLocalizedDescriptions()) {
             $category->description = $command->getLocalizedDescriptions();
+        }
+
+        if (null !== $command->getLocalizedAdditionalDescriptions()) {
+            $category->additional_description = $command->getLocalizedAdditionalDescriptions();
         }
 
         if (null !== $command->getLocalizedMetaTitles()) {
@@ -103,15 +109,15 @@ final class AddRootCategoryHandler extends AbstractObjectModelHandler implements
         }
 
         if (false === $category->validateFields(false)) {
-            throw new CategoryException('Invalid data for root category creation');
+            throw new CategoryException('Invalid data for creating root category.');
         }
 
         if (false === $category->validateFieldsLang(false)) {
-            throw new CategoryException('Invalid data for root category creation');
+            throw new CategoryException('Invalid language data for creating root category.');
         }
 
         if (false === $category->save()) {
-            throw new CannotAddCategoryException('Failed to create root category');
+            throw new CannotAddCategoryException('Failed to create root category.');
         }
 
         if ($command->getAssociatedShopIds()) {

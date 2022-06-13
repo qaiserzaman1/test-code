@@ -101,7 +101,7 @@ class TagCore extends ObjectModel
         }
 
         if (!is_array($tagList)) {
-            $tagList = array_filter(array_unique(array_map('trim', preg_split('#\\' . $separator . '#', $tagList, null, PREG_SPLIT_NO_EMPTY))));
+            $tagList = array_filter(array_unique(array_map('trim', preg_split('#\\' . $separator . '#', $tagList, 0, PREG_SPLIT_NO_EMPTY))));
         }
 
         $list = [];
@@ -110,7 +110,8 @@ class TagCore extends ObjectModel
                 if (!Validate::isGenericName($tag)) {
                     return false;
                 }
-                $tag = trim(Tools::substr($tag, 0, self::$definition['fields']['name']['size']));
+                $tagMaxLength = self::$definition['fields']['name']['size'];
+                $tag = trim(Tools::substr(trim($tag), 0, $tagMaxLength));
                 $tagObj = new Tag(null, $tag, (int) $idLang);
 
                 /* Tag does not exist in database */
@@ -281,16 +282,16 @@ class TagCore extends ObjectModel
         $result = Db::getInstance()->delete('product_tag', 'id_tag = ' . (int) $this->id);
         if (is_array($array)) {
             $array = array_map('intval', $array);
-            $result &= ObjectModel::updateMultishopTable('Product', ['indexed' => 0], 'a.id_product IN (' . implode(',', $array) . ')');
-            $ids = [];
-            foreach ($array as $idProduct) {
-                $ids[] = '(' . (int) $idProduct . ',' . (int) $this->id . ',' . (int) $this->id_lang . ')';
-            }
+            $result = $result && ObjectModel::updateMultishopTable('Product', ['indexed' => 0], 'a.id_product IN (' . implode(',', $array) . ')');
 
             if ($result) {
-                $result &= Db::getInstance()->execute('INSERT INTO ' . _DB_PREFIX_ . 'product_tag (id_product, id_tag, id_lang) VALUES ' . implode(',', $ids));
+                $ids = [];
+                foreach ($array as $idProduct) {
+                    $ids[] = '(' . (int) $idProduct . ',' . (int) $this->id . ',' . (int) $this->id_lang . ')';
+                }
+                $result = Db::getInstance()->execute('INSERT INTO ' . _DB_PREFIX_ . 'product_tag (id_product, id_tag, id_lang) VALUES ' . implode(',', $ids));
                 if (Configuration::get('PS_SEARCH_INDEXATION')) {
-                    $result &= Search::indexation(false);
+                    $result = $result && Search::indexation(false);
                 }
             }
         }
@@ -305,11 +306,51 @@ class TagCore extends ObjectModel
      * @param int $idProduct Product ID
      *
      * @return bool
+     *
+     * @throws PrestaShopDatabaseException
      */
     public static function deleteTagsForProduct($idProduct)
     {
-        $tagsRemoved = Db::getInstance()->executeS('SELECT id_tag FROM ' . _DB_PREFIX_ . 'product_tag WHERE id_product=' . (int) $idProduct);
-        $result = Db::getInstance()->delete('product_tag', 'id_product = ' . (int) $idProduct);
+        return self::deleteProductTags($idProduct);
+    }
+
+    /**
+     * Delete tags for product in specific language
+     *
+     * @param int $productId
+     * @param int $langId
+     *
+     * @return bool
+     */
+    public static function deleteProductTagsInLang(int $productId, int $langId)
+    {
+        return self::deleteProductTags($productId, $langId);
+    }
+
+    /**
+     * Deletes product tags.
+     *
+     * @param int $idProduct
+     * @param int|null $langId if provided, only deletes tags in specific language
+     *
+     * @return bool
+     *
+     * @throws PrestaShopDatabaseException
+     */
+    private static function deleteProductTags($idProduct, int $langId = null)
+    {
+        $removeWhere = 'id_product = ' . (int) $idProduct;
+        $selectTagsToRemove = '
+            SELECT id_tag FROM ' . _DB_PREFIX_ . 'product_tag
+            WHERE id_product=' . (int) $idProduct
+        ;
+        if ($langId) {
+            $removeWhere .= ' AND id_lang =' . (int) $langId;
+            $selectTagsToRemove .= ' AND id_lang =' . (int) $langId;
+        }
+
+        $tagsRemoved = Db::getInstance()->executeS($selectTagsToRemove);
+        $result = Db::getInstance()->delete('product_tag', $removeWhere);
         Db::getInstance()->delete('tag', 'NOT EXISTS (SELECT 1 FROM ' . _DB_PREFIX_ . 'product_tag
         												WHERE ' . _DB_PREFIX_ . 'product_tag.id_tag = ' . _DB_PREFIX_ . 'tag.id_tag)');
         $tagList = [];

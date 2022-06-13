@@ -27,6 +27,7 @@
 namespace PrestaShop\PrestaShop\Core\Cart;
 
 use Cart;
+use CartCore;
 use Currency;
 use Tools;
 
@@ -43,7 +44,7 @@ class Fees
     protected $shippingFees;
 
     /**
-     * @var AmountImmutable
+     * @var AmountImmutable|null
      */
     protected $finalShippingFees;
 
@@ -79,13 +80,13 @@ class Fees
     }
 
     /**
-     * @param Cart $cart
+     * @param CartCore $cart
      * @param CartRowCollection $cartRowCollection
      * @param int $computePrecision
      * @param int|null $id_carrier
      */
     public function processCalculation(
-        Cart $cart,
+        CartCore $cart,
         CartRowCollection $cartRowCollection,
         $computePrecision,
         $id_carrier = null
@@ -164,7 +165,7 @@ class Fees
     }
 
     /**
-     * @return AmountImmutable
+     * @return AmountImmutable|null
      */
     public function getFinalShippingFees()
     {

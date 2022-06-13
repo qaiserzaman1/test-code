@@ -1,7 +1,16 @@
 require('module-alias/register');
 const BOBasePage = require('@pages/BO/BObasePage');
 
+/**
+ * Credit slips page, contains functions that can be used on credit slips page
+ * @class
+ * @extends BOBasePage
+ */
 class CreditSlips extends BOBasePage {
+  /**
+   * @constructs
+   * Setting up texts and selectors to use on credit slips page
+   */
   constructor() {
     super();
 
@@ -14,21 +23,26 @@ class CreditSlips extends BOBasePage {
     this.creditSlipGridPanel = '#credit_slip_grid_panel';
     this.creditSlipsGridTitle = `${this.creditSlipGridPanel} h3.card-header-title`;
     this.creditSlipGridTable = '#credit_slip_grid_table';
-    this.filterResetButton = `${this.creditSlipGridTable} button[name='credit_slip[actions][reset]']`;
-    this.filterSearchButton = `${this.creditSlipGridTable} button[name='credit_slip[actions][search]']`;
+    this.filterResetButton = `${this.creditSlipGridTable} .grid-reset-button`;
+    this.filterSearchButton = `${this.creditSlipGridTable} .grid-search-button`;
     this.creditSlipsFilterColumnInput = filterBy => `#credit_slip_${filterBy}`;
     this.creditSlipsTableRow = row => `${this.creditSlipGridTable} tbody tr:nth-child(${row})`;
     this.creditSlipsTableColumn = (row, column) => `${this.creditSlipsTableRow(row)} td.column-${column}`;
     this.creditSlipDownloadButton = id => `${this.creditSlipGridTable} tr:nth-child(${id}) td.link-type.column-pdf`;
+
     // By date form
-    this.generateByDateForm = '[name=\'generate_pdf_by_date\']';
+    this.generateByDateForm = '#form-generate-credit-slips-by-date';
     this.dateFromInput = '#generate_pdf_by_date_from';
     this.dateToInput = '#generate_pdf_by_date_to';
-    this.generatePdfByDateButton = `${this.generateByDateForm} .btn.btn-primary`;
+    this.generatePdfByDateButton = `${this.generateByDateForm} #generate-credit-slip-by-date`;
+
     // Credit slip options form
-    this.creditSlipOptionsForm = '[name=\'form\']';
-    this.invoicePrefixInput = '#form_options_slip_prefix_1';
-    this.saveCreditSlipOptionsButton = `${this.creditSlipOptionsForm} .btn.btn-primary`;
+    this.creditSlipOptionsForm = '#form-credit-slips-options';
+    this.invoicePrefixENInput = '#form_slip_prefix_1';
+    this.invoicePrefixFRInput = '#form_slip_prefix_2';
+    this.languageDropDownButton = '#form_slip_prefix_dropdown';
+    this.invoicePrefixFrenchSelect = 'div.dropdown.show span[data-locale="fr"]';
+    this.saveCreditSlipOptionsButton = `${this.creditSlipOptionsForm} #save-credit-slip-options-button`;
   }
 
   /*
@@ -36,7 +50,7 @@ class CreditSlips extends BOBasePage {
    */
   /**
    * Reset input filters
-   * @param page
+   * @param page {Page} Browser tab
    * @returns {Promise<void>}
    */
   async resetFilter(page) {
@@ -47,7 +61,7 @@ class CreditSlips extends BOBasePage {
 
   /**
    * Get number of elements in grid
-   * @param page
+   * @param page {Page} Browser tab
    * @returns {Promise<number>}
    */
   async getNumberOfElementInGrid(page) {
@@ -56,7 +70,7 @@ class CreditSlips extends BOBasePage {
 
   /**
    * Reset Filter And get number of elements in list
-   * @param page
+   * @param page {Page} Browser tab
    * @returns {Promise<number>}
    */
   async resetAndGetNumberOfLines(page) {
@@ -66,10 +80,10 @@ class CreditSlips extends BOBasePage {
 
   /**
    * Filter credit slips
-   * @param page
-   * @param filterBy, column to filter
-   * @param value, value to filter with
-   * @return {Promise<void>}
+   * @param page {Page} Browser tab
+   * @param filterBy {string} Column to filter with
+   * @param value {string} value to filter with
+   * @returns {Promise<void>}
    */
   async filterCreditSlips(page, filterBy, value = '') {
     await this.setValue(page, this.creditSlipsFilterColumnInput(filterBy), value.toString());
@@ -79,10 +93,10 @@ class CreditSlips extends BOBasePage {
 
   /**
    * Filter credit slips by date
-   * @param page
-   * @param dateFrom
-   * @param dateTo
-   * @return {Promise<void>}
+   * @param page {Page} Browser tab
+   * @param dateFrom {string} Value to set on filter date from input
+   * @param dateTo {string} Value to set on filter date to input
+   * @returns {Promise<void>}
    */
   async filterCreditSlipsByDate(page, dateFrom, dateTo) {
     await page.type(this.creditSlipsFilterColumnInput('date_issued_from'), dateFrom);
@@ -93,9 +107,9 @@ class CreditSlips extends BOBasePage {
 
   /**
    * get text from a column
-   * @param page
-   * @param row, row in table
-   * @param column, which column
+   * @param page {Page} Browser tab
+   * @param row {number} Credit slip row on table
+   * @param column {string} Column name to get
    * @returns {Promise<string>}
    */
   async getTextColumnFromTableCreditSlips(page, row, column) {
@@ -104,41 +118,33 @@ class CreditSlips extends BOBasePage {
 
   /**
    * Download credit slip
-   * @param page
-   * @param lineNumber
-   * @return {Promise<*>}
+   * @param page {Page} Browser tab
+   * @param row {number} Credit slip row on table
+   * @returns {Promise<string>}
    */
-  async downloadCreditSlip(page, lineNumber = 1) {
-    const [download] = await Promise.all([
-      page.waitForEvent('download'), // wait for download to start
-      page.click(this.creditSlipDownloadButton(lineNumber)),
-    ]);
-    return download.path();
+  downloadCreditSlip(page, row = 1) {
+    return this.clickAndWaitForDownload(page, this.creditSlipDownloadButton(row));
   }
 
   /**
    * Generate PDF by date and download it
-   * @param page
-   * @param dateFrom
-   * @param dateTo
-   * @return {Promise<*>}
+   * @param page {Page} Browser tab
+   * @param dateFrom {string} Value to set on date from input
+   * @param dateTo {string} Value to set on date to input
+   * @returns {Promise<string>}
    */
   async generatePDFByDateAndDownload(page, dateFrom = '', dateTo = '') {
     await this.setValuesForGeneratingPDFByDate(page, dateFrom, dateTo);
 
-    const [download] = await Promise.all([
-      page.waitForEvent('download'), // wait for download to start
-      page.click(this.generatePdfByDateButton),
-    ]);
-    return download.path();
+    return this.clickAndWaitForDownload(page, this.generatePdfByDateButton);
   }
 
   /**
    * Get message error after generate credit slip fail
-   * @param page
-   * @param dateFrom
-   * @param dateTo
-   * @return {Promise<string>}
+   * @param page {Page} Browser tab
+   * @param dateFrom {string} Value to set on date from input
+   * @param dateTo {string} Value to set on date to input
+   * @returns {Promise<string>}
    */
   async generatePDFByDateAndFail(page, dateFrom = '', dateTo = '') {
     await this.setValuesForGeneratingPDFByDate(page, dateFrom, dateTo);
@@ -148,9 +154,9 @@ class CreditSlips extends BOBasePage {
 
   /**
    * Set values to generate pdf by date
-   * @param page
-   * @param dateFrom
-   * @param dateTo
+   * @param page {Page} Browser tab
+   * @param dateFrom {string} Value to set on date from input
+   * @param dateTo {string} Value to set on date to input
    * @returns {Promise<void>}
    */
   async setValuesForGeneratingPDFByDate(page, dateFrom = '', dateTo = '') {
@@ -163,22 +169,39 @@ class CreditSlips extends BOBasePage {
     }
   }
 
-  /** Edit credit slip Prefix
-   * @param page
-   * @param prefix
-   * @return {Promise<void>}
+  /** Edit credit slip Prefix on FR and on EN
+   * @param page {Page} Browser tab
+   * @param prefixEN {string} Prefix on english language value to change
+   * @param prefixFR {string} Prefix on french language value to change
+   * @returns {Promise<void>}
    */
-  async changePrefix(page, prefix) {
-    await this.setValue(page, this.invoicePrefixInput, prefix);
+  async changePrefix(page, prefixEN, prefixFR = prefixEN) {
+    await this.setValue(page, this.invoicePrefixENInput, prefixEN);
+    await this.waitForSelectorAndClick(page, this.languageDropDownButton);
+    await this.waitForSelectorAndClick(page, this.invoicePrefixFrenchSelect);
+    await this.setValue(page, this.invoicePrefixFRInput, prefixFR);
+  }
+
+  /**
+   * Delete prefix
+   * @param page {Page} Browser tab
+   * @returns {Promise<void>}
+   */
+  async deletePrefix(page) {
+    await this.clearInput(page, this.invoicePrefixENInput);
+    await this.waitForSelectorAndClick(page, this.languageDropDownButton);
+    await this.waitForSelectorAndClick(page, this.invoicePrefixFrenchSelect);
+    await this.clearInput(page, this.invoicePrefixFRInput);
   }
 
   /** Save credit slip options
-   * @param page
-   * @return {Promise<void>}
+   * @param page {Page} Browser tab
+   * @returns {Promise<void>}
    */
   async saveCreditSlipOptions(page) {
     await this.clickAndWaitForNavigation(page, this.saveCreditSlipOptionsButton);
     return this.getAlertSuccessBlockParagraphContent(page);
   }
 }
+
 module.exports = new CreditSlips();

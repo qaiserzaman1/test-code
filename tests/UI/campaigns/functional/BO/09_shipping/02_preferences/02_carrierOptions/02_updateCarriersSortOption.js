@@ -1,15 +1,22 @@
 require('module-alias/register');
 
+// Import expect from chai
+const {expect} = require('chai');
+
 // Import utils
 const helper = require('@utils/helpers');
+const basicHelper = require('@utils/basicHelper');
+const testContext = require('@utils/testContext');
 
 // Common tests login BO
-const loginCommon = require('@commonTests/loginBO');
+const loginCommon = require('@commonTests/BO/loginBO');
 
-// Import pages
+// Import BO pages
 const dashboardPage = require('@pages/BO/dashboard');
 const preferencesPage = require('@pages/BO/shipping/preferences');
 const carriersPage = require('@pages/BO/shipping/carriers');
+
+// Import FO pages
 const foHomePage = require('@pages/FO/home');
 const foProductPage = require('@pages/FO/product');
 const foCartPage = require('@pages/FO/cart');
@@ -19,13 +26,7 @@ const foCheckoutPage = require('@pages/FO/checkout');
 const {Carriers} = require('@data/demo/carriers');
 const {DefaultCustomer} = require('@data/demo/customer');
 
-// Import test context
-const testContext = require('@utils/testContext');
-
 const baseContext = 'functional_BO_shipping_preferences_carrierOptions_updateCarriersSortOption';
-
-// Import expect from chai
-const {expect} = require('chai');
 
 // Browser and tab
 let browserContext;
@@ -44,7 +45,7 @@ Go to FO and check the carriers sort
 Go back to BO > shipping > Carriers
 Disable the 2 carriers 'My cheap carrier' and 'My light carrier'
  */
-describe('Update \'sort carriers by\' and \'Order carriers by\' then check it in FO', async () => {
+describe('BO - Shipping - Preferences : Update \'sort carriers by\' and \'Order carriers by\'', async () => {
   // before and after functions
   before(async function () {
     browserContext = await helper.createBrowserContext(this.browser);
@@ -199,7 +200,7 @@ describe('Update \'sort carriers by\' and \'Order carriers by\' then check it in
 
         if (test.args.sortBy === 'Price') {
           const sortedCarriers = await foCheckoutPage.getAllCarriersPrices(page);
-          const expectedResult = await foCheckoutPage.sortArray(sortedCarriers, true);
+          const expectedResult = await basicHelper.sortArray(sortedCarriers, true);
           if (test.args.orderBy === 'Ascending') {
             await expect(sortedCarriers).to.deep.equal(expectedResult);
           } else {

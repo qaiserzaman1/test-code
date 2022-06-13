@@ -36,13 +36,14 @@ use Currency;
 use Customer;
 use DateTimeImmutable;
 use Gender;
+use Group;
 use Module;
 use Order;
 use OrderInvoice;
 use OrderPayment;
 use OrderSlip;
 use OrderState;
-use PrestaShop\Decimal\Number;
+use PrestaShop\Decimal\DecimalNumber;
 use PrestaShop\PrestaShop\Adapter\Address\AddressFormatter;
 use PrestaShop\PrestaShop\Adapter\Configuration;
 use PrestaShop\PrestaShop\Adapter\Customer\CustomerDataProvider;
@@ -83,7 +84,6 @@ use PrestaShop\PrestaShop\Core\Domain\Order\QueryResult\OrderSourcesForViewing;
 use PrestaShop\PrestaShop\Core\Domain\Order\QueryResult\OrderStatusForViewing;
 use PrestaShop\PrestaShop\Core\Domain\Order\ValueObject\OrderId;
 use PrestaShop\PrestaShop\Core\Domain\Shop\ValueObject\ShopConstraint;
-use PrestaShop\PrestaShop\Core\Image\Parser\ImageTagSourceParserInterface;
 use PrestaShop\PrestaShop\Core\Localization\Exception\LocalizationException;
 use PrestaShop\PrestaShop\Core\Localization\Locale;
 use State;
@@ -139,7 +139,6 @@ final class GetOrderForViewingHandler extends AbstractOrderHandler implements Ge
     private $addressFormatter;
 
     /**
-     * @param ImageTagSourceParserInterface $imageTagSourceParser
      * @param TranslatorInterface $translator
      * @param int $contextLanguageId
      * @param Locale $locale
@@ -186,7 +185,7 @@ final class GetOrderForViewingHandler extends AbstractOrderHandler implements Ge
         $invoiceManagementIsEnabled = (bool) $this->configuration->get(
             'PS_INVOICE',
             null,
-            new ShopConstraint((int) $order->id_shop, (int) $order->id_shop_group)
+            ShopConstraint::shop((int) $order->id_shop)
         );
 
         $orderInvoiceAddress = $this->getOrderInvoiceAddress($order);
@@ -223,16 +222,17 @@ final class GetOrderForViewingHandler extends AbstractOrderHandler implements Ge
             $this->getOrderSources($order),
             $this->getLinkedOrders($order),
             $this->addressFormatter->format(new AddressId((int) $order->id_address_delivery)),
-            $this->addressFormatter->format(new AddressId((int) $order->id_address_invoice))
+            $this->addressFormatter->format(new AddressId((int) $order->id_address_invoice)),
+            (string) $order->note
         );
     }
 
     /**
      * @param Order $order
      *
-     * @return OrderCustomerForViewing|null
+     * @return OrderCustomerForViewing
      */
-    private function getOrderCustomer(Order $order, OrderInvoiceAddressForViewing $invoiceAddress): ?OrderCustomerForViewing
+    private function getOrderCustomer(Order $order, OrderInvoiceAddressForViewing $invoiceAddress): OrderCustomerForViewing
     {
         $currency = new Currency($order->id_currency);
         $customer = new Customer($order->id_customer);
@@ -254,20 +254,44 @@ final class GetOrderForViewingHandler extends AbstractOrderHandler implements Ge
 
         $isB2BEnabled = $this->configuration->getBoolean('PS_B2B_ENABLE');
 
+        // Assign customer groups, if enabled
+        $groups = [];
+        if (Group::isFeatureActive()) {
+            // Get group data in employees language and extract ids and names
+            $groupNames = [];
+            foreach (Group::getGroups($this->contextLanguageId) as $group) {
+                $groupNames[$group['id_group']] = $group['name'];
+            }
+
+            // Get customer groups as IDs
+            $customerGroupIds = Customer::getGroupsStatic((int) $customer->id);
+
+            // Go through customer groups and assign a name
+            // If it's the default group of the customer and there is more than 1 group, we assign a suffix
+            foreach ($customerGroupIds as $id) {
+                if ($id == $customer->id_default_group && count($customerGroupIds) > 1) {
+                    $groups[] = $groupNames[$id] . ' (' . $this->translator->trans('default', [], 'Admin.Orderscustomers.Feature') . ')';
+                } else {
+                    $groups[] = $groupNames[$id];
+                }
+            }
+        }
+
         return new OrderCustomerForViewing(
             (int) $customer->id,
             $customer->firstname,
             $customer->lastname,
             $genderName,
             $customer->email,
-            new DateTimeImmutable($customer->date_add),
+            new DateTimeImmutable($customer->date_add ?? 'now'),
             $totalSpentSinceRegistration !== null ? $this->locale->formatPrice($totalSpentSinceRegistration, $currency->iso_code) : '',
             $customerStats['nb_orders'],
             $customer->note,
             (bool) $customer->is_guest,
             (int) $order->getAssociatedLanguage()->getId(),
             $isB2BEnabled ? ($customer->ape ?: '') : '',
-            $isB2BEnabled ? ($customer->siret ?: '') : ''
+            $isB2BEnabled ? ($customer->siret ?: '') : '',
+            $groups
         );
     }
 
@@ -435,16 +459,19 @@ final class GetOrderForViewingHandler extends AbstractOrderHandler implements Ge
                 $conf = $this->configuration->get(
                     'PS_DELIVERY_PREFIX',
                     null,
-                    new ShopConstraint($order->id_shop, $order->id_shop_group)
+                    ShopConstraint::shop((int) $order->id_shop)
                 );
                 $number = sprintf(
                     '%s%06d',
                     $conf[$this->contextLanguageId] ?? '',
                     $document->delivery_number
                 );
-                $amount = $this->locale->formatPrice($document->total_paid_tax_incl, $currency->iso_code);
+                $amount = $this->locale->formatPrice(
+                    $document->total_paid_tax_incl,
+                    $currency->iso_code
+                );
                 $numericAmount = $document->total_paid_tax_incl;
-            } elseif (OrderDocumentType::CREDIT_SLIP) {
+            } elseif (OrderDocumentType::CREDIT_SLIP === $type) {
                 $conf = $this->configuration->get('PS_CREDIT_SLIP_PREFIX');
                 $number = sprintf(
                     '%s%06d',
@@ -529,7 +556,7 @@ final class GetOrderForViewingHandler extends AbstractOrderHandler implements Ge
 
                 $carriers[] = new OrderCarrierForViewing(
                     (int) $item['id_order_carrier'],
-                    new DateTimeImmutable($item['date_add']),
+                    new DateTimeImmutable($item['date_add'] ?? 'now'),
                     $item['carrier_name'],
                     $weight,
                     (int) $item['id_carrier'],
@@ -557,34 +584,28 @@ final class GetOrderForViewingHandler extends AbstractOrderHandler implements Ge
      */
     private function getOrderReturns(Order $order): OrderReturnsForViewing
     {
-        $returns = $order->getReturn();
-
-        if ($order->isVirtual()) {
+        if ($order->isVirtual() || $this->configuration->getBoolean('PS_ORDER_RETURN') === false) {
             return new OrderReturnsForViewing();
         }
 
+        $returns = $order->getReturn();
         $orderReturns = [];
 
         foreach ($returns as $orderReturn) {
-            $trackingUrl = null;
-            $trackingNumber = null;
-
-            if (isset($orderReturn['url'], $orderReturn['tracking_number'])) {
-                $trackingUrl = $orderReturn['url'];
-                $trackingNumber = $orderReturn['tracking_number'];
-            } elseif (isset($orderReturn['tracking_number'])) {
-                $trackingNumber = $orderReturn['tracking_number'];
-            }
+            $returnPrefixByLang = $this->configuration->get('PS_RETURN_PREFIX');
+            $orderReturnNumber = sprintf(
+                '%s%06d',
+                $returnPrefixByLang[$this->contextLanguageId] ?? '',
+                $orderReturn['id_order_return']
+            );
 
             $orderReturns[] = new OrderReturnForViewing(
                 (int) $orderReturn['id_order_return'],
                 isset($orderReturn['id_order_invoice']) ? (int) $orderReturn['id_order_invoice'] : 0,
-                isset($orderReturn['id_carrier']) ? (int) $orderReturn['id_carrier'] : 0,
                 new DateTimeImmutable($orderReturn['date_add']),
                 $orderReturn['type'],
-                $orderReturn['state_name'],
-                $trackingUrl,
-                $trackingNumber
+                $orderReturn['state_name'] ?? '',
+                $orderReturnNumber
             );
         }
 
@@ -611,7 +632,7 @@ final class GetOrderForViewingHandler extends AbstractOrderHandler implements Ge
 
         if (count($payments) > 0) {
             $noPaymentMismatch = round($order->getOrdersTotalPaid(), 2) == round($order->getTotalPaid(), 2)
-                || ($currentState && $currentState->id == 6);
+                || ($currentState && $currentState->id == $this->configuration->getInt('PS_OS_CANCELED'));
 
             if (!$noPaymentMismatch) {
                 $orderAmountToPay = $this->locale->formatPrice($order->getOrdersTotalPaid(), $currency->iso_code);
@@ -734,13 +755,13 @@ final class GetOrderForViewingHandler extends AbstractOrderHandler implements Ge
         $taxesAmount = $order->total_paid_tax_incl - $order->total_paid_tax_excl;
 
         return new OrderPricesForViewing(
-            new Number((string) $productsPrice),
-            new Number((string) $discountsAmount),
-            new Number((string) $wrappingPrice),
-            new Number((string) $shippingPrice),
-            new Number((string) $shippingRefundable),
-            new Number((string) $taxesAmount),
-            new Number((string) $totalAmount),
+            new DecimalNumber((string) $productsPrice),
+            new DecimalNumber((string) $discountsAmount),
+            new DecimalNumber((string) $wrappingPrice),
+            new DecimalNumber((string) $shippingPrice),
+            new DecimalNumber((string) $shippingRefundable),
+            new DecimalNumber((string) $taxesAmount),
+            new DecimalNumber((string) $totalAmount),
             Tools::displayPrice($productsPrice, $currency),
             Tools::displayPrice($discountsAmount, $currency),
             Tools::displayPrice($wrappingPrice, $currency),
@@ -770,7 +791,7 @@ final class GetOrderForViewingHandler extends AbstractOrderHandler implements Ge
             $discountsForViewing[] = new OrderDiscountForViewing(
                 (int) $discount['id_order_cart_rule'],
                 $discount['name'],
-                new Number((string) $discountAmount),
+                new DecimalNumber((string) $discountAmount),
                 Tools::displayPrice($discountAmount, $currency)
             );
         }

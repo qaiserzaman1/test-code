@@ -1,7 +1,16 @@
 require('module-alias/register');
 const CommonPage = require('@pages/commonPage');
 
-module.exports = class FOBasePage extends CommonPage {
+/**
+ * FO parent page, contains functions that can be used on all FO page
+ * @class
+ * @extends CommonPage
+ */
+class FOBasePage extends CommonPage {
+  /**
+   * @constructs
+   * Setting up texts and selectors to use on all FO pages
+   */
   constructor() {
     super();
 
@@ -10,7 +19,7 @@ module.exports = class FOBasePage extends CommonPage {
     this.content = '#content';
     this.desktopLogo = '#_desktop_logo';
     this.desktopLogoLink = `${this.desktopLogo} a`;
-    this.cartProductsCount = '#_desktop_cart span.cart-products-count';
+    this.cartProductsCount = '#_desktop_cart .cart-products-count';
     this.cartLink = '#_desktop_cart a';
     this.userInfoLink = '#_desktop_user_info';
     this.accountLink = `${this.userInfoLink} .user-info a.account`;
@@ -20,9 +29,12 @@ module.exports = class FOBasePage extends CommonPage {
     this.languageSelectorDiv = '#_desktop_language_selector';
     this.defaultLanguageSpan = `${this.languageSelectorDiv} button span`;
     this.languageSelectorExpandIcon = `${this.languageSelectorDiv} i.expand-more`;
+    this.languageSelectorList = `${this.languageSelectorDiv} .js-dropdown.open`;
     this.languageSelectorMenuItemLink = language => `${this.languageSelectorDiv} ul li a[data-iso-code='${language}']`;
     this.currencySelectorDiv = '#_desktop_currency_selector';
     this.defaultCurrencySpan = `${this.currencySelectorDiv} button span`;
+    this.currencySelectorExpandIcon = `${this.currencySelectorDiv} i.expand-more`;
+    this.currencySelectorMenuItemLink = currency => `${this.currencySelectorExpandIcon} ul li a[title='${currency}']`;
     this.currencySelect = 'select[aria-labelledby=\'currency-selector-label\']';
     this.searchInput = '#search_widget input.ui-autocomplete-input';
     this.autocompleteSearchResult = '.ui-autocomplete';
@@ -43,15 +55,22 @@ module.exports = class FOBasePage extends CommonPage {
     this.storesLink = '#link-static-page-stores-2';
     // Your account links selectors
     this.footerAccountList = '#footer_account_list';
-    this.personalInfoLink = `${this.footerAccountList} a[title='Personal info']`;
+    this.informationLink = `${this.footerAccountList} a[title='Information']`;
+    this.orderTrackingLink = `${this.footerAccountList} a[title='Order tracking']`;
+    this.signInLink = `${this.footerAccountList} a[title='Log in to your customer account']`;
+    this.createAccountLink = `${this.footerAccountList} a[title='Create account']`;
+    this.addressesLink = `${this.footerAccountList} a[title='Addresses']`;
     this.ordersLink = `${this.footerAccountList} a[title='Orders']`;
     this.creditSlipsLink = `${this.footerAccountList} a[title='Credit slips']`;
-    this.addressesLink = `${this.footerAccountList} a[title='Addresses']`;
+    this.vouchersLink = `${this.footerAccountList} a[title='Vouchers']`;
+    this.wishListLink = `${this.footerAccountList} a[title='My wishlists']`;
+    this.signOutLink = `${this.footerAccountList} a[title='Log me out']`;
+
     // Store information
     this.wrapperContactBlockDiv = '#footer div.block-contact';
 
-    this.footerLinksDiv = '#footer div.links';
-    this.wrapperDiv = position => `${this.footerLinksDiv}:nth-child(1) > div > div.wrapper:nth-child(${position})`;
+    this.footerLinksDiv = '#footer .links';
+    this.wrapperDiv = position => `${this.footerLinksDiv} .wrapper:nth-child(${position})`;
     this.wrapperTitle = position => `${this.wrapperDiv(position)} p`;
     this.wrapperSubmenu = position => `${this.wrapperDiv(position)} ul[id*='footer_sub_menu']`;
     this.wrapperSubmenuItemLink = position => `${this.wrapperSubmenu(position)} li a`;
@@ -64,7 +83,7 @@ module.exports = class FOBasePage extends CommonPage {
 
   /**
    * Go to Fo page
-   * @param page
+   * @param page {Page} Browser tab
    * @return {Promise<void>}
    */
   async goToFo(page) {
@@ -74,8 +93,8 @@ module.exports = class FOBasePage extends CommonPage {
   // Header methods
   /**
    * Go to header link
-   * @param page
-   * @param link
+   * @param page {Page} Browser tab
+   * @param link {string} Header selector that contain link to click on to
    * @returns {Promise<void>}
    */
   async clickOnHeaderLink(page, link) {
@@ -107,26 +126,26 @@ module.exports = class FOBasePage extends CommonPage {
 
   /**
    * Go to the home page
-   * @param page
+   * @param page {Page} Browser tab
    * @returns {Promise<void>}
    */
   async goToHomePage(page) {
     await this.waitForVisibleSelector(page, this.desktopLogo);
-    await this.clickOnHeaderLink(page, 'Logo');
+    await this.clickAndWaitForNavigation(page, this.desktopLogoLink);
   }
 
   /**
    * Go to login Page
-   * @param page
+   * @param page {Page} Browser tab
    * @return {Promise<void>}
    */
   async goToLoginPage(page) {
-    await this.clickOnHeaderLink(page, 'Sign in');
+    await this.clickAndWaitForNavigation(page, this.userInfoLink);
   }
 
   /**
    * Logout from FO
-   * @param page
+   * @param page {Page} Browser tab
    * @return {Promise<void>}
    */
   async logout(page) {
@@ -135,7 +154,7 @@ module.exports = class FOBasePage extends CommonPage {
 
   /**
    * Check if customer is connected
-   * @param page
+   * @param page {Page} Browser tab
    * @return {Promise<boolean>}
    */
   async isCustomerConnected(page) {
@@ -144,7 +163,7 @@ module.exports = class FOBasePage extends CommonPage {
 
   /**
    * Click on link to go to account page
-   * @param page
+   * @param page {Page} Browser tab
    * @return {Promise<void>}
    */
   async goToMyAccountPage(page) {
@@ -153,21 +172,21 @@ module.exports = class FOBasePage extends CommonPage {
 
   /**
    * Change language in FO
-   * @param page
-   * @param lang
+   * @param page {Page} Browser tab
+   * @param lang {string} Language to choose on the select (ex: en or fr)
    * @return {Promise<void>}
    */
   async changeLanguage(page, lang = 'en') {
     await Promise.all([
       page.click(this.languageSelectorExpandIcon),
-      this.waitForVisibleSelector(page, this.languageSelectorMenuItemLink(lang)),
+      this.waitForVisibleSelector(page, this.languageSelectorList),
     ]);
     await this.clickAndWaitForNavigation(page, this.languageSelectorMenuItemLink(lang));
   }
 
   /**
    * Get shop language
-   * @param page
+   * @param page {Page} Browser tab
    * @returns {Promise<string>}
    */
   getShopLanguage(page) {
@@ -176,8 +195,8 @@ module.exports = class FOBasePage extends CommonPage {
 
   /**
    * Return true if language exist in FO
-   * @param page
-   * @param lang
+   * @param page {Page} Browser tab
+   * @param lang {string} Language to check on the select (ex: en or fr)
    * @return {Promise<boolean>}
    */
   async languageExists(page, lang = 'en') {
@@ -187,20 +206,35 @@ module.exports = class FOBasePage extends CommonPage {
 
   /**
    * Change currency in FO
-   * @param page
-   * @param currency
+   * @param page {Page} Browser tab
+   * @param isoCode {string} Iso code of the currency to choose
+   * @param symbol {string} Symbol of the currency to choose
    * @return {Promise<void>}
    */
-  async changeCurrency(page, currency = 'EUR €') {
+  async changeCurrency(page, isoCode = 'EUR', symbol = '€') {
+    // If isoCode and symbol are the same, only isoCode id displayed in FO
+    const currency = isoCode === symbol ? isoCode : `${isoCode} ${symbol}`;
+
     await Promise.all([
-      this.selectByVisibleText(page, this.currencySelect, currency),
+      this.selectByVisibleText(page, this.currencySelect, currency, true),
       page.waitForNavigation('newtorkidle'),
     ]);
   }
 
   /**
+   * Get if currency exists on dropdown
+   * @param page {Page} Browser tab
+   * @param currencyName {string} Name of the currency to check
+   * @returns {Promise<boolean>}
+   */
+  async currencyExists(page, currencyName = 'Euro') {
+    await page.click(this.currencySelectorExpandIcon);
+    return this.elementVisible(page, this.currencySelectorMenuItemLink(currencyName), 1000);
+  }
+
+  /**
    * Get default currency
-   * @param page
+   * @param page {Page} Browser tab
    * @returns {Promise<string>}
    */
   getDefaultCurrency(page) {
@@ -209,48 +243,57 @@ module.exports = class FOBasePage extends CommonPage {
 
   /**
    * Go to category
-   * @param page
-   * @param categoryID, category id from the BO
+   * @param page {Page} Browser tab
+   * @param categoryID {number} Category id from the BO
    * @returns {Promise<void>}
    */
   async goToCategory(page, categoryID) {
-    await this.waitForSelectorAndClick(page, this.categoryMenu(categoryID));
+    await this.clickAndWaitForNavigation(page, this.categoryMenu(categoryID));
   }
 
   /**
    * Go to subcategory
-   * @param page
-   * @param categoryID, category id from the BO
-   * @param subCategoryID, subcategory id from the BO
+   * @param page {Page} Browser tab
+   * @param categoryID {number} Category id from the BO
+   * @param subCategoryID {number} Subcategory id from the BO
    * @returns {Promise<void>}
    */
   async goToSubCategory(page, categoryID, subCategoryID) {
     await page.hover(this.categoryMenu(categoryID));
-    await this.waitForSelectorAndClick(page, this.categoryMenu(subCategoryID));
+    await this.clickAndWaitForNavigation(page, this.categoryMenu(subCategoryID));
+  }
+
+  /**
+   * Get store information
+   * @param page {Page} Browser tab
+   * @returns {Promise<string>}
+   */
+  async getStoreInformation(page) {
+    return this.getTextContent(page, this.wrapperContactBlockDiv);
   }
 
   /**
    * Get cart notifications number
-   * @param page
+   * @param page {Page} Browser tab
    * @returns {Promise<number>}
    */
   async getCartNotificationsNumber(page) {
-    return this.getNumberFromText(page, this.cartProductsCount);
+    return this.getNumberFromText(page, this.cartProductsCount, 2000);
   }
 
   /**
    * Go to cart page
-   * @param page
+   * @param page {Page} Browser tab
    * @returns {Promise<void>}
    */
   async goToCartPage(page) {
-    await this.clickOnHeaderLink(page, 'Cart');
+    await this.clickAndWaitForNavigation(page, this.cartLink);
   }
 
   /**
    * Get autocomplete search result
-   * @param page
-   * @param productName
+   * @param page {Page} Browser tab
+   * @param productName {string} Product name to search
    * @returns {Promise<*>}
    */
   async getAutocompleteSearchResult(page, productName) {
@@ -261,8 +304,8 @@ module.exports = class FOBasePage extends CommonPage {
 
   /**
    * Search product
-   * @param page
-   * @param productName
+   * @param page {Page} Browser tab
+   * @param productName {string} Product name to search
    * @returns {Promise<void>}
    */
   async searchProduct(page, productName) {
@@ -274,8 +317,8 @@ module.exports = class FOBasePage extends CommonPage {
   // Footer methods
   /**
    * Get Title of Block that contains links in footer
-   * @param page
-   * @param position
+   * @param page {Page} Browser tab
+   * @param position {number} Position of the links on footer
    * @returns {Promise<string>}
    */
   async getFooterLinksBlockTitle(page, position) {
@@ -284,9 +327,9 @@ module.exports = class FOBasePage extends CommonPage {
 
   /**
    * Get text content of footer links
-   * @param page
-   * @param position, position of links
-   * @return {Promise<!Promise<!Object|undefined>|any>}
+   * @param page {Page} Browser tab
+   * @param position {number} Position of the links on footer
+   * @return {Promise<Array<string>>}
    */
   async getFooterLinksTextContent(page, position) {
     return page.$$eval(
@@ -296,24 +339,15 @@ module.exports = class FOBasePage extends CommonPage {
   }
 
   /**
-   * Get store information
-   * @param page
-   * @returns {Promise<string>}
-   */
-  async getStoreInformation(page) {
-    return this.getTextContent(page, this.wrapperContactBlockDiv);
-  }
-
-  /**
    * Go to footer link
-   * @param page
-   * @param pageTitle
+   * @param page {Page} Browser tab
+   * @param textSelector {string} String displayed on footer link to click on
    * @returns {Promise<void>}
    */
-  async goToFooterLink(page, pageTitle) {
+  async goToFooterLink(page, textSelector) {
     let selector;
 
-    switch (pageTitle) {
+    switch (textSelector) {
       case 'Prices drop':
         selector = this.pricesDropLink;
         break;
@@ -358,8 +392,24 @@ module.exports = class FOBasePage extends CommonPage {
         selector = this.storesLink;
         break;
 
-      case 'Personal info':
-        selector = this.personalInfoLink;
+      case 'Information':
+        selector = this.informationLink;
+        break;
+
+      case 'Order tracking':
+        selector = this.orderTrackingLink;
+        break;
+
+      case 'Sign in':
+        selector = this.signInLink;
+        break;
+
+      case 'Create account':
+        selector = this.createAccountLink;
+        break;
+
+      case 'Addresses':
+        selector = this.addressesLink;
         break;
 
       case 'Orders':
@@ -370,13 +420,23 @@ module.exports = class FOBasePage extends CommonPage {
         selector = this.creditSlipsLink;
         break;
 
-      case 'Addresses':
-        selector = this.addressesLink;
+      case 'Vouchers':
+        selector = this.vouchersLink;
+        break;
+
+      case 'Wishlist':
+        selector = this.wishListLink;
+        break;
+
+      case 'Sign out':
+        selector = this.signOutLink;
         break;
 
       default:
-        throw new Error(`The page ${pageTitle} was not found`);
+        throw new Error(`The page ${textSelector} was not found`);
     }
     return this.clickAndWaitForNavigation(page, selector);
   }
-};
+}
+
+module.exports = FOBasePage;

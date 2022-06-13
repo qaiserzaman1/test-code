@@ -2,19 +2,23 @@
   position: relative;
   display: inline-block;
 
-  input[type=number]::-webkit-inner-spin-button,
-  input[type=number]::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    -moz-appearance: none;
+  /* Chrome, Safari, Edge, Opera */
+  input::-webkit-outer-spin-button,
+  input::-webkit-inner-spin-button {
+    margin: 0;
     appearance: none;
   }
-  input[type=number] {
-    -moz-appearance: textfield;
+
+  /* Firefox */
+  input[type="number"] {
+    appearance: textfield;
   }
+
   .danger {
-    border: 1px solid $danger;
-    background-color: #fff;
     color: $gray-dark;
+    background-color: $white;
+    border: 1px solid $danger;
+
     &:focus {
       outline: none;
     }
@@ -23,10 +27,10 @@
   .ps-number-spinner {
     position: absolute;
     top: 1px;
-    flex-direction: column;
     right: 0;
-    cursor: pointer;
+    flex-direction: column;
     line-height: 17px;
+    cursor: pointer;
   }
 
   &.hover-buttons {
@@ -36,25 +40,25 @@
     }
 
     &:hover .ps-number-spinner {
-      opacity: 1;
       display: inline-block;
+      opacity: 1;
     }
   }
 
   .ps-number-up::before {
-    font-family: 'Material Icons';
-    content: "\E5C7";
+    position: relative;
+    font-family: "Material Icons", Arial, Helvetica, sans-serif;
     font-size: 20px;
     color: $gray-dark;
-    position: relative;
+    content: "\E5C7";
   }
 
   .ps-number-down::before {
-    font-family: 'Material Icons';
-    content: "\E5C5";
+    position: relative;
+    bottom: 6px;
+    font-family: "Material Icons", Arial, Helvetica, sans-serif;
     font-size: 20px;
     color: $gray-dark;
-    bottom: 6px;
-    position: relative;
+    content: "\E5C5";
   }
 }

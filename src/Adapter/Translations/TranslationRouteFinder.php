@@ -28,7 +28,7 @@ namespace PrestaShop\PrestaShop\Adapter\Translations;
 
 use Link;
 use Module;
-use PrestaShop\PrestaShop\Core\Addon\Module\ModuleRepositoryInterface;
+use PrestaShop\PrestaShop\Core\Module\ModuleRepositoryInterface;
 use PrestaShopBundle\Exception\InvalidModuleException;
 use PrestaShopBundle\Service\TranslationService;
 use Symfony\Component\HttpFoundation\ParameterBag;
@@ -42,22 +42,22 @@ class TranslationRouteFinder
     /**
      * Mails translations type.
      */
-    const MAILS = 'mails';
+    public const MAILS = 'mails';
 
     /**
      * Modules translations type.
      */
-    const MODULES = 'modules';
+    public const MODULES = 'modules';
 
     /**
      * Email body translations type.
      */
-    const BODY = 'body';
+    public const BODY = 'body';
 
     /**
      * Themes translations type.
      */
-    const THEMES = 'themes';
+    public const THEMES = 'themes';
 
     /**
      * @var TranslationService
@@ -204,7 +204,7 @@ class TranslationRouteFinder
      */
     private function isModuleUsingNewTranslationSystem($moduleName)
     {
-        $module = $this->moduleRepository->getInstanceByName($moduleName);
+        $module = $this->moduleRepository->getModule($moduleName);
 
         if (!($module instanceof Module)) {
             throw new InvalidModuleException($moduleName);

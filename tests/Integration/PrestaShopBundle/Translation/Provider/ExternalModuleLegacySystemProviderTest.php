@@ -33,7 +33,7 @@ use Symfony\Component\Translation\MessageCatalogueInterface;
 use Tests\Integration\PrestaShopBundle\Translation\CatalogueVerifier;
 
 /**
- * @doc ./vendor/bin/phpunit -c tests/Integration/phpunit.xml --filter="ExternalModuleLegacySystemProviderTest"
+ * ./vendor/bin/phpunit -c tests/Integration/phpunit.xml --filter="ExternalModuleLegacySystemProviderTest"
  */
 class ExternalModuleLegacySystemProviderTest extends KernelTestCase
 {
@@ -56,7 +56,7 @@ class ExternalModuleLegacySystemProviderTest extends KernelTestCase
         $this->catalogueVerifier = new CatalogueVerifier($this);
     }
 
-    protected function setUp()
+    protected function setUp(): void
     {
         self::bootKernel();
         $container = self::$kernel->getContainer();

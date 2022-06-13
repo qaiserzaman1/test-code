@@ -44,7 +44,7 @@ class UpdateOrderStatusType extends AbstractType
     private $statusChoiceAttributes;
 
     /**
-     * @param ConfigurableFormChoiceProviderInterface $statusChoices
+     * @param ConfigurableFormChoiceProviderInterface $statusChoiceProvider
      * @param array $statusChoiceAttributes
      */
     public function __construct(
@@ -68,6 +68,10 @@ class UpdateOrderStatusType extends AbstractType
                 'choices' => $this->statusChoiceProvider->getChoices($choiceProviderParams),
                 'choice_attr' => $this->statusChoiceAttributes,
                 'translation_domain' => false,
+                'attr' => [
+                    'data-toggle' => 'select2',
+                    'data-minimumResultsForSearch' => '7',
+                ],
             ])
         ;
     }

@@ -82,6 +82,11 @@ class AddEmployeeCommand
     private $plainPassword;
 
     /**
+     * @var bool
+     */
+    private $hasEnabledGravatar;
+
+    /**
      * @param string $firstName
      * @param string $lastName
      * @param string $email
@@ -91,6 +96,10 @@ class AddEmployeeCommand
      * @param bool $active
      * @param int $profileId
      * @param array $shopAssociation
+     * @param bool $hasEnabledGravatar
+     * @param int $minLength
+     * @param int $maxLength
+     * @param int $minScore
      */
     public function __construct(
         $firstName,
@@ -101,7 +110,11 @@ class AddEmployeeCommand
         $languageId,
         $active,
         $profileId,
-        array $shopAssociation
+        array $shopAssociation,
+        bool $hasEnabledGravatar,
+        int $minLength,
+        int $maxLength,
+        int $minScore
     ) {
         $this->firstName = new FirstName($firstName);
         $this->lastName = new LastName($lastName);
@@ -111,7 +124,8 @@ class AddEmployeeCommand
         $this->active = $active;
         $this->profileId = $profileId;
         $this->shopAssociation = $shopAssociation;
-        $this->plainPassword = new Password($plainPassword);
+        $this->plainPassword = new Password($plainPassword, $minLength, $maxLength, $minScore);
+        $this->hasEnabledGravatar = $hasEnabledGravatar;
     }
 
     /**
@@ -184,5 +198,13 @@ class AddEmployeeCommand
     public function getPlainPassword()
     {
         return $this->plainPassword;
+    }
+
+    /**
+     * @return bool
+     */
+    public function hasEnabledGravatar()
+    {
+        return $this->hasEnabledGravatar;
     }
 }

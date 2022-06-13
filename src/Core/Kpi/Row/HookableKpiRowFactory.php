@@ -31,7 +31,7 @@ use PrestaShop\PrestaShop\Core\Kpi\Exception\InvalidArgumentException;
 use PrestaShop\PrestaShop\Core\Kpi\KpiInterface;
 
 /**
- * Class KpiRowFactory builds a KPI row, able to dispatch a hook.
+ * Class HookableKpiRowFactory builds a KPI row, able to dispatch a hook.
  */
 final class HookableKpiRowFactory implements KpiRowFactoryInterface
 {
@@ -73,7 +73,9 @@ final class HookableKpiRowFactory implements KpiRowFactoryInterface
     }
 
     /**
-     * {@inheritdoc}
+     * @return KpiRow|void
+     *
+     * @throws InvalidArgumentException
      */
     public function build()
     {

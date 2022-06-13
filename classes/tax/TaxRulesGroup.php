@@ -66,7 +66,9 @@ class TaxRulesGroupCore extends ObjectModel
     {
         if (!$this->deleted && $this->isUsed()) {
             $current_tax_rules_group = new TaxRulesGroup((int) $this->id);
-            if ((!$new_tax_rules_group = $current_tax_rules_group->duplicateObject()) || !$current_tax_rules_group->historize($new_tax_rules_group)) {
+            /** @var TaxRulesGroup|false $new_tax_rules_group */
+            $new_tax_rules_group = $current_tax_rules_group->duplicateObject();
+            if (!$new_tax_rules_group || !$current_tax_rules_group->historize($new_tax_rules_group)) {
                 return false;
             }
 
@@ -134,22 +136,66 @@ class TaxRulesGroupCore extends ObjectModel
 
     public static function getTaxRulesGroups($only_active = true)
     {
-        return Db::getInstance()->executeS('
-			SELECT DISTINCT g.id_tax_rules_group, g.name, g.active
-			FROM `' . _DB_PREFIX_ . 'tax_rules_group` g'
-            . Shop::addSqlAssociation('tax_rules_group', 'g') . ' WHERE deleted = 0'
-            . ($only_active ? ' AND g.`active` = 1' : '') . '
-			ORDER BY name ASC');
+        return self::getTaxRulesGroupsData($only_active);
     }
 
     /**
-     * @return array an array of tax rules group formatted as $id => $name
+     * This method returns the list of TaxRulesGroup as array with default placeholder
+     * it is used to populate a select box. The returned array is formatted like this:
+     * [
+     *   [
+     *     'id_tax_rules_group' => ...,
+     *     'name' => ...,
+     *     'active' => ...,
+     *     'rate' => ...,
+     *   ],
+     *   ...
+     * ]
+     *
+     * @return array an array of tax rules group formatted as:
      */
     public static function getTaxRulesGroupsForOptions()
     {
-        $tax_rules[] = ['id_tax_rules_group' => 0, 'name' => Context::getContext()->getTranslator()->trans('No tax', [], 'Admin.International.Notification')];
+        $tax_rules[] = [
+            'id_tax_rules_group' => 0,
+            'name' => Context::getContext()->getTranslator()->trans('No tax', [], 'Admin.International.Notification'),
+        ];
 
-        return array_merge($tax_rules, TaxRulesGroup::getTaxRulesGroups());
+        return array_merge($tax_rules, TaxRulesGroup::getTaxRulesGroupsData(true, true));
+    }
+
+    /**
+     * @param bool $onlyActive Filter active tax rules group only
+     * @param bool $includeRates Include tax rate amount in returned data
+     *
+     * @return array|false
+     *
+     * @throws PrestaShopDatabaseException
+     */
+    private static function getTaxRulesGroupsData($onlyActive = true, bool $includeRates = false)
+    {
+        $sql = 'SELECT DISTINCT g.id_tax_rules_group, g.name, g.active';
+
+        if ($includeRates) {
+            $sql .= ', t.rate';
+        }
+
+        $sql .= ' FROM `' . _DB_PREFIX_ . 'tax_rules_group` g';
+
+        if ($includeRates) {
+            $sql .= '
+                INNER JOIN ' . _DB_PREFIX_ . 'tax_rule tr
+                ON g.id_tax_rules_group = tr.id_tax_rules_group
+                INNER JOIN ' . _DB_PREFIX_ . 'tax t
+                ON tr.id_tax = t.id_tax
+            ';
+        }
+
+        $sql .= Shop::addSqlAssociation('tax_rules_group', 'g') . ' WHERE g.deleted = 0'
+            . ($onlyActive ? ' AND g.`active` = 1' : '')
+            . ' ORDER BY name ASC';
+
+        return Db::getInstance()->executeS($sql);
     }
 
     public function delete()
@@ -192,7 +238,7 @@ class TaxRulesGroupCore extends ObjectModel
      */
     public static function getIdByName($name)
     {
-        return Db::getInstance()->getValue(
+        return (int) Db::getInstance()->getValue(
             'SELECT `id_tax_rules_group`
 			FROM `' . _DB_PREFIX_ . 'tax_rules_group` rg
 			WHERE `name` = \'' . pSQL($name) . '\''
@@ -219,31 +265,5 @@ class TaxRulesGroupCore extends ObjectModel
 		FROM `' . _DB_PREFIX_ . 'order_detail`
 		WHERE `id_tax_rules_group` = ' . (int) $this->id
         );
-    }
-
-    /**
-     * @deprecated since 1.5
-     */
-    public static function getTaxesRate($id_tax_rules_group, $id_country, $id_state, $zipcode)
-    {
-        Tools::displayAsDeprecated();
-        $rate = 0;
-        foreach (TaxRulesGroup::getTaxes($id_tax_rules_group, $id_country, $id_state, $zipcode) as $tax) {
-            $rate += (float) $tax->rate;
-        }
-
-        return $rate;
-    }
-
-    /**
-     * Return taxes associated to this para.
-     *
-     * @deprecated since 1.5
-     */
-    public static function getTaxes($id_tax_rules_group, $id_country, $id_state, $id_county)
-    {
-        Tools::displayAsDeprecated();
-
-        return [];
     }
 }

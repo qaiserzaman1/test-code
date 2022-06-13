@@ -23,15 +23,30 @@
  * @license   https://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
  *-->
 <template>
-  <div id="search" class="col-md-8 mb-4">
-    <form class="search-form" @submit.prevent>
-      <label>{{trans('search_label')}}</label>
+  <div
+    id="search"
+    class="col-md-8 mb-4"
+  >
+    <form
+      class="search-form"
+      @submit.prevent
+    >
+      <label>{{ trans('search_label') }}</label>
       <div class="input-group">
-        <PSTags ref="psTags" :tags="tags" @tagChange="onSearch" :placeholder="trans('search_placeholder')" />
+        <PSTags
+          ref="psTags"
+          :tags="tags"
+          @tagChange="onSearch"
+          :placeholder="trans('search_placeholder')"
+        />
         <div class="input-group-append">
-          <PSButton @click="onClick" class="search-button" :primary="true">
-              <i class="material-icons">search</i>
-              {{trans('button_search')}}
+          <PSButton
+            @click="onClick"
+            class="search-button"
+            :primary="true"
+          >
+            <i class="material-icons">search</i>
+            {{ trans('button_search') }}
           </PSButton>
         </div>
       </div>
@@ -39,19 +54,21 @@
   </div>
 </template>
 
-<script>
-  import PSTags from '@app/widgets/ps-tags';
-  import PSButton from '@app/widgets/ps-button';
+<script lang="ts">
+  import Vue from 'vue';
+  import PSTags from '@app/widgets/ps-tags.vue';
+  import PSButton from '@app/widgets/ps-button.vue';
 
-  export default {
+  export default Vue.extend({
     components: {
       PSTags,
       PSButton,
     },
     methods: {
       onClick() {
-        const tag = this.$refs.psTags.tag;
-        this.$refs.psTags.add(tag);
+        const refPsTags = this.$refs.psTags as VTags;
+        const {tag} = refPsTags;
+        refPsTags.add(tag);
       },
       onSearch() {
         this.$store.dispatch('updateSearch', this.tags);
@@ -68,5 +85,5 @@
         tags: [],
       };
     },
-  };
+  });
 </script>

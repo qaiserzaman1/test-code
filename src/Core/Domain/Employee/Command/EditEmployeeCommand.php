@@ -88,6 +88,11 @@ class EditEmployeeCommand
     private $plainPassword;
 
     /**
+     * @var bool
+     */
+    private $hasEnabledGravatar = false;
+
+    /**
      * @param int $employeeId
      */
     public function __construct($employeeId)
@@ -285,12 +290,35 @@ class EditEmployeeCommand
 
     /**
      * @param string $plainPassword
+     * @param int $minLength
+     * @param int $maxLength
+     * @param int $minScore
      *
      * @return EditEmployeeCommand
      */
-    public function setPlainPassword($plainPassword)
+    public function setPlainPassword($plainPassword, int $minLength, int $maxLength, int $minScore)
     {
-        $this->plainPassword = new Password($plainPassword);
+        $this->plainPassword = new Password($plainPassword, $minLength, $maxLength, $minScore);
+
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    public function hasEnabledGravatar()
+    {
+        return $this->hasEnabledGravatar;
+    }
+
+    /**
+     * @param bool $hasEnabledGravatar
+     *
+     * @return EditEmployeeCommand
+     */
+    public function setHasEnabledGravatar(bool $hasEnabledGravatar)
+    {
+        $this->hasEnabledGravatar = $hasEnabledGravatar;
 
         return $this;
     }

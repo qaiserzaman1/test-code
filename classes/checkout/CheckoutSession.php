@@ -25,35 +25,52 @@
  */
 class CheckoutSessionCore
 {
+    /** @var Context */
     protected $context;
+    /** @var DeliveryOptionsFinder */
     protected $deliveryOptionsFinder;
 
+    /**
+     * @param Context $context
+     * @param DeliveryOptionsFinder $deliveryOptionsFinder
+     */
     public function __construct(Context $context, DeliveryOptionsFinder $deliveryOptionsFinder)
     {
         $this->context = $context;
         $this->deliveryOptionsFinder = $deliveryOptionsFinder;
     }
 
+    /**
+     * @return bool
+     */
     public function customerHasLoggedIn()
     {
         return $this->context->customer->isLogged();
     }
 
+    /**
+     * @return Customer
+     */
     public function getCustomer()
     {
         return $this->context->customer;
     }
 
+    /**
+     * @return Cart
+     */
     public function getCart()
     {
         return $this->context->cart;
     }
 
+    /**
+     * @return int
+     */
     public function getCustomerAddressesCount()
     {
         return count($this->getCustomer()->getSimpleAddresses(
-            $this->context->language->id,
-            true // no cache
+            $this->context->language->id
         ));
     }
 
@@ -143,7 +160,7 @@ class CheckoutSessionCore
 
     public function setRecyclable($option)
     {
-        $this->context->cart->recyclable = (int) $option;
+        $this->context->cart->recyclable = (bool) $option;
 
         return $this->context->cart->update();
     }
@@ -155,7 +172,7 @@ class CheckoutSessionCore
 
     public function setGift($gift, $gift_message)
     {
-        $this->context->cart->gift = (int) $gift;
+        $this->context->cart->gift = (bool) $gift;
         $this->context->cart->gift_message = $gift_message;
 
         return $this->context->cart->update();

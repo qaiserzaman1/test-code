@@ -1,7 +1,16 @@
 require('module-alias/register');
 const BOBasePage = require('@pages/BO/BObasePage');
 
+/**
+ * Add address page, contains functions that can be used on the page
+ * @class
+ * @extends BOBasePage
+ */
 class AddAddress extends BOBasePage {
+  /**
+   * @constructs
+   * Setting up texts and selectors to use on add address page
+   */
   constructor() {
     super();
 
@@ -22,9 +31,12 @@ class AddAddress extends BOBasePage {
     this.customerAddressCityInput = '#customer_address_city';
     this.customerAddressCountrySelect = '#customer_address_id_country';
     this.customerAddressCountryOption = `${this.customerAddressCountrySelect} option`;
+    this.customerAddressStateSelect = '#select2-customer_address_id_state-container';
+    this.searchStateInput = '.select2-search__field';
+    this.searchResultState = '.select2-results__option.select2-results__option--highlighted';
     this.customerAddressPhoneInput = '#customer_address_phone';
     this.customerAddressOtherInput = '#customer_address_other';
-    this.saveAddressButton = 'div.card-footer button';
+    this.saveAddressButton = '#save-button';
   }
 
   /*
@@ -33,11 +45,13 @@ class AddAddress extends BOBasePage {
 
   /**
    * Fill form for add/edit address
-   * @param page
-   * @param addressData
-   * @returns {Promise<string>}
+   * @param page {Page} Browser tab
+   * @param addressData {AddressData} Data to set on new address form
+   * @param save {boolean} True if we need to save the new address, false if not
+   * @param waitForNavigation {boolean} True if we need to wait for navigation after save, false if not
+   * @returns {Promise<?string>}
    */
-  async createEditAddress(page, addressData) {
+  async createEditAddress(page, addressData, save = true, waitForNavigation = true) {
     if (await this.elementVisible(page, this.customerEmailInput, 2000)) {
       await this.setValue(page, this.customerEmailInput, addressData.email);
     }
@@ -54,14 +68,39 @@ class AddAddress extends BOBasePage {
     await this.selectByVisibleText(page, this.customerAddressCountrySelect, addressData.country);
     await this.setValue(page, this.customerAddressPhoneInput, addressData.phone);
     await this.setValue(page, this.customerAddressOtherInput, addressData.other);
-    // Save address
+
+    if (await this.elementVisible(page, this.customerAddressStateSelect, 1000)) {
+      await page.click(this.customerAddressStateSelect);
+      await this.setValue(page, this.searchStateInput, addressData.state);
+      await this.waitForSelectorAndClick(page, this.searchResultState);
+    }
+
+    if (waitForNavigation) {
+      // Save and return successful message
+      if (save) {
+        return this.saveAddress(page);
+      }
+    }
+
+    // save
+    await this.waitForSelectorAndClick(page, this.saveAddressButton);
+
+    return null;
+  }
+
+  /**
+   * Save address
+   * @param page {Page} Browser tab
+   * @returns {Promise<string>}
+   */
+  async saveAddress(page) {
     await this.clickAndWaitForNavigation(page, this.saveAddressButton);
     return this.getAlertSuccessBlockParagraphContent(page);
   }
 
   /**
    * Get selected country by default in form
-   * @param page
+   * @param page {Page} Browser tab
    * @return {Promise<string>}
    */
   getSelectedCountry(page) {

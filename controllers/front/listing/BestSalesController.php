@@ -29,7 +29,13 @@ use PrestaShop\PrestaShop\Core\Product\Search\SortOrder;
 
 class BestSalesControllerCore extends ProductListingFrontController
 {
+    /** @var string */
     public $php_self = 'best-sales';
+
+    public function getCanonicalURL(): string
+    {
+        return $this->buildPaginatedUrl($this->context->link->getPageLink('best-sales'));
+    }
 
     /**
      * Initializes controller.
@@ -43,7 +49,7 @@ class BestSalesControllerCore extends ProductListingFrontController
         if (Configuration::get('PS_DISPLAY_BEST_SELLERS')) {
             parent::init();
         } else {
-            Tools::redirect('index.php?controller=404');
+            Tools::redirect('pagenotfound');
         }
     }
 
@@ -54,7 +60,7 @@ class BestSalesControllerCore extends ProductListingFrontController
     {
         parent::initContent();
 
-        $this->doProductSearch('catalog/listing/best-sales');
+        $this->doProductSearch('catalog/listing/best-sales', ['entity' => 'best-sales']);
     }
 
     protected function getProductSearchQuery()

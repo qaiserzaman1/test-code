@@ -223,23 +223,6 @@ class Version
     }
 
     /**
-     * Returns the current release version.
-     *
-     * @deprecated Since 1.7.6.0, use getPatchVersion();
-     *
-     * @return int
-     */
-    public function getReleaseVersion()
-    {
-        @trigger_error(
-            'getReleaseVersion() is deprecated since version 1.7.6.0 Use getPatchVersion() instead.',
-            E_USER_DEPRECATED
-        );
-
-        return $this->getPatchVersion();
-    }
-
-    /**
      * Returns the current pre release version (if any)
      *
      * @return string
@@ -262,7 +245,7 @@ class Version
     /**
      * Returns if the current version is greater than the provided version.
      *
-     * @param $version Must be a valid version string, for example "1.7.4.0"
+     * @param string $version Must be a valid version string, for example "1.7.4.0"
      *
      * @return bool
      *
@@ -276,7 +259,7 @@ class Version
     /**
      * Returns if the current version is greater than or equal to the provided version.
      *
-     * @param $version Must be a valid version string, for example "1.7.4.0"
+     * @param string $version Must be a valid version string, for example "1.7.4.0"
      *
      * @return bool
      *
@@ -290,7 +273,7 @@ class Version
     /**
      * Returns if the current version is less than the provided version.
      *
-     * @param $version Must be a valid version string, for example "1.7.4.0"
+     * @param string $version Must be a valid version string, for example "1.7.4.0"
      *
      * @return bool
      *
@@ -304,7 +287,7 @@ class Version
     /**
      * Returns if the current version is less than or equal to the provided version.
      *
-     * @param $version Must be a valid version string, for example "1.7.4.0"
+     * @param string $version Must be a valid version string, for example "1.7.4.0"
      *
      * @return bool
      *
@@ -318,7 +301,7 @@ class Version
     /**
      * Returns if the current version is equal to the provided version.
      *
-     * @param $version Must be a valid version string, for example "1.7.4.0"
+     * @param string $version Must be a valid version string, for example "1.7.4.0"
      *
      * @return bool
      *
@@ -332,7 +315,7 @@ class Version
     /**
      * Returns if the current version is not equal to the provided version.
      *
-     * @param $version Must be a valid version string, for example "1.7.4.0"
+     * @param string $version Must be a valid version string, for example "1.7.4.0"
      *
      * @return bool
      *
@@ -355,9 +338,9 @@ class Version
      * Compares the current version with the provided version depending on the provided operator.
      * It sanitized both version to have a.
      *
-     * @param $version  string Must be a valid version string, for example "1.7.4.0"
-     * @param $operator string Operator for version_compare(),
-     *                  allowed values are: <, lt, <=, le, >, gt, >=, ge, ==, =, eq, !=, <>, ne
+     * @param string $version Must be a valid version string, for example "1.7.4.0"
+     * @param string $operator Operator for version_compare(),
+     *                         allowed values are: <, lt, <=, le, >, gt, >=, ge, ==, =, eq, !=, <>, ne
      *
      * @return bool result of the comparison
      *
@@ -381,7 +364,7 @@ class Version
      * @param string $version
      * @param string $majorVersionString
      *
-     * @return bool|string
+     * @return string
      */
     private function removeLegacyPrefix($version, $majorVersionString)
     {
